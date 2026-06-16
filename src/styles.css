@@ -229,7 +229,8 @@ tr:last-child td {
     grid-template-columns: 1fr;
   }
 
-  .paste-panel {
+  .paste-panel,
+  .stat-preset-panel {
     grid-template-columns: 1fr;
   }
 
@@ -565,6 +566,20 @@ tr:last-child td {
   gap: 10px;
   grid-template-columns: 180px minmax(0, 1fr) max-content;
   padding: 12px;
+}
+
+.stat-preset-panel {
+  align-items: end;
+  border: 1px solid #dbe1ea;
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(160px, 1fr) minmax(160px, 1fr) max-content;
+  padding: 12px;
+}
+
+.stat-preset-actions {
+  align-items: end;
 }
 
 .inline-form {

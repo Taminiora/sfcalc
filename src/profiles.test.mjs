@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  DEFAULT_STAT_EQUIVALENCE_CLASS,
+  DEFAULT_STAT_ROWS,
   calculateFdGain,
   calculateStarforceFdBreakdown,
   calculateStarforceFdGain,
@@ -9,13 +11,24 @@ import {
   expandClassStatGains,
   loadProfiles,
   loadStatEquivalence,
+  loadStatEquivalencePresets,
   refreshStarforceProfileCosts,
   saveProfiles,
   saveStatEquivalence,
+  saveStatEquivalencePresets,
   validateProfileInput,
   validateStatEquivalenceInput,
+  validateStatEquivalencePresetInput,
 } from "./profiles.mjs";
 import { formatStrategy } from "./strategyFormat.mjs";
+
+test("defaults stat equivalence to the original Wind Archer screenshot values", () => {
+  const statEquivalence = loadStatEquivalence(new MapStorage());
+
+  assert.equal(DEFAULT_STAT_EQUIVALENCE_CLASS, "wind_archer");
+  assert.equal(statEquivalence.className, "wind_archer");
+  assert.deepEqual(statEquivalence.rows, DEFAULT_STAT_ROWS);
+});
 
 test("derives FD gain from stat-equivalence rows and stat gains", () => {
   const statEquivalence = validateStatEquivalenceInput({
@@ -396,12 +409,33 @@ test("saves and loads stat-equivalence rows and profiles", () => {
   assert.deepEqual(loadProfiles(storage), profiles);
 });
 
+test("saves and loads named stat-equivalence presets", () => {
+  const storage = new MapStorage();
+  const presets = [
+    validateStatEquivalencePresetInput({
+      id: "preset-1",
+      name: "Bossing",
+      className: "wind_archer",
+      rows: [{ stat: "Attack", value: 30, finalDamagePercent: 0.643 }],
+    }),
+  ];
+
+  saveStatEquivalencePresets(storage, presets);
+
+  assert.deepEqual(loadStatEquivalencePresets(storage), presets);
+});
+
 test("falls back to defaults when saved planner data is corrupt", () => {
   const storage = new MapStorage();
   storage.setItem("sfcalc.enhancementPlanner.statEquivalence.v2", "{not json");
   storage.setItem("sfcalc.enhancementPlanner.profiles.v2", JSON.stringify({ not: "an array" }));
+  storage.setItem("sfcalc.enhancementPlanner.statEquivalencePresets.v1", JSON.stringify({ not: "an array" }));
 
-  assert.deepEqual(loadStatEquivalence(storage), validateStatEquivalenceInput());
+  assert.deepEqual(
+    loadStatEquivalence(storage),
+    validateStatEquivalenceInput({ className: DEFAULT_STAT_EQUIVALENCE_CLASS }),
+  );
+  assert.deepEqual(loadStatEquivalencePresets(storage), []);
   assert.deepEqual(loadProfiles(storage), []);
 });
 

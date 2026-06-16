@@ -8,17 +8,21 @@ import {
 } from "./statEquivalenceParser.mjs";
 import { calculateStarforceStatGains } from "./starforceStats.mjs";
 import {
+  DEFAULT_STAT_EQUIVALENCE_CLASS,
   calculateStarforceFdBreakdown,
   calculateStarforceFdGain,
   deriveProfileMetrics,
   expandClassStatGains,
   loadProfiles,
   loadStatEquivalence,
+  loadStatEquivalencePresets,
   refreshStarforceProfileCosts,
   saveProfiles,
   saveStatEquivalence,
+  saveStatEquivalencePresets,
   validateProfileInput,
   validateStatEquivalenceInput,
+  validateStatEquivalencePresetInput,
 } from "./profiles.mjs";
 import { calculateStarforceProfileCosts, optimizeStarforce } from "./plannerStarforce.mjs";
 import { formatStrategy } from "./strategyFormat.mjs";
@@ -29,6 +33,11 @@ const statEquivalenceForm = document.querySelector("#stat-equivalence-form");
 const statEquivalenceClass = document.querySelector("#stat-equivalence-class");
 const statEquivalencePaste = document.querySelector("#stat-equivalence-paste");
 const statEquivalenceParse = document.querySelector("#stat-equivalence-parse");
+const statEquivalencePreset = document.querySelector("#stat-equivalence-preset");
+const statEquivalencePresetName = document.querySelector("#stat-equivalence-preset-name");
+const statEquivalencePresetSave = document.querySelector("#stat-equivalence-preset-save");
+const statEquivalencePresetLoad = document.querySelector("#stat-equivalence-preset-load");
+const statEquivalencePresetDelete = document.querySelector("#stat-equivalence-preset-delete");
 const statRows = document.querySelector("#stat-equivalence-rows");
 const statEquivalenceMessage = document.querySelector("#stat-equivalence-message");
 const profileForm = document.querySelector("#profile-form");
@@ -94,12 +103,12 @@ const resultFields = {
   benchmarkOutcome: document.querySelector("#result-benchmark-outcome"),
 };
 
-const DEFAULT_STAT_EQUIVALENCE_CLASS = "wind_archer";
-
 let profiles = refreshStarforceProfileCosts(loadProfiles());
 let statEquivalence = loadStatEquivalence();
+let statEquivalencePresets = loadStatEquivalencePresets();
 saveProfiles(undefined, profiles);
 saveStatEquivalence(undefined, statEquivalence);
+saveStatEquivalencePresets(undefined, statEquivalencePresets);
 
 function formatInteger(value) {
   return Math.round(value).toLocaleString("en-US");
@@ -308,6 +317,39 @@ function renderClassOptions() {
   if ([...statEquivalenceClass.options].some((option) => option.value === selectedValue)) {
     statEquivalenceClass.value = selectedValue;
   }
+}
+
+function getSelectedStatEquivalencePreset() {
+  return statEquivalencePresets.find((preset) => preset.id === statEquivalencePreset.value);
+}
+
+function syncStatEquivalencePresetControls() {
+  const hasSelection = Boolean(getSelectedStatEquivalencePreset());
+  statEquivalencePresetLoad.disabled = !hasSelection;
+  statEquivalencePresetDelete.disabled = !hasSelection;
+}
+
+function renderStatEquivalencePresetOptions(selectedValue = statEquivalencePreset.value) {
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = statEquivalencePresets.length > 0 ? "Select preset" : "No presets";
+
+  statEquivalencePreset.replaceChildren(
+    placeholder,
+    ...statEquivalencePresets.map((preset) => {
+      const option = document.createElement("option");
+      option.value = preset.id;
+      option.textContent = preset.name;
+      return option;
+    }),
+  );
+
+  if (statEquivalencePresets.some((preset) => preset.id === selectedValue)) {
+    statEquivalencePreset.value = selectedValue;
+  } else {
+    statEquivalencePreset.value = "";
+  }
+  syncStatEquivalencePresetControls();
 }
 
 function renderStatGains(container, defaultValues = {}) {
@@ -669,6 +711,7 @@ function fillProfileForm(profile) {
 
 function renderAll() {
   renderClassOptions();
+  renderStatEquivalencePresetOptions();
   renderStatRows();
   renderStatGains(profileStatGains, readStatGains(profileStatGains));
   renderStatGains(profileCubingStatGains, readStatGains(profileCubingStatGains));
@@ -699,6 +742,68 @@ function updateLiveStatEquivalence({ statusMessage = "" } = {}) {
   }
 }
 
+function getDefaultStatEquivalencePresetName() {
+  return `${formatClassName(statEquivalenceClass.value || DEFAULT_STAT_EQUIVALENCE_CLASS)} preset`;
+}
+
+function saveCurrentStatEquivalencePreset() {
+  if (!updateLiveStatEquivalence()) {
+    return;
+  }
+
+  const selectedPreset = getSelectedStatEquivalencePreset();
+  const presetName = statEquivalencePresetName.value.trim() || getDefaultStatEquivalencePresetName();
+  const matchingIndex = selectedPreset
+    ? statEquivalencePresets.findIndex((preset) => preset.id === selectedPreset.id)
+    : statEquivalencePresets.findIndex(
+        (preset) => preset.name.toLowerCase() === presetName.toLowerCase(),
+      );
+  const preset = validateStatEquivalencePresetInput({
+    ...(matchingIndex >= 0 ? { id: statEquivalencePresets[matchingIndex].id } : {}),
+    name: presetName,
+    ...statEquivalence,
+  });
+
+  statEquivalencePresets =
+    matchingIndex >= 0
+      ? statEquivalencePresets.map((existing) => (existing.id === preset.id ? preset : existing))
+      : [...statEquivalencePresets, preset];
+  saveStatEquivalencePresets(undefined, statEquivalencePresets);
+  renderStatEquivalencePresetOptions(preset.id);
+  statEquivalencePresetName.value = preset.name;
+  setMessage(statEquivalenceMessage, `Saved preset "${preset.name}".`);
+}
+
+function loadSelectedStatEquivalencePreset() {
+  const preset = getSelectedStatEquivalencePreset();
+  if (!preset) {
+    setMessage(statEquivalenceMessage, "Choose a preset to load.");
+    return;
+  }
+
+  statEquivalence = validateStatEquivalenceInput(preset);
+  saveStatEquivalence(undefined, statEquivalence);
+  statEquivalencePaste.value = "";
+  renderAll();
+  renderStatEquivalencePresetOptions(preset.id);
+  statEquivalencePresetName.value = preset.name;
+  setMessage(statEquivalenceMessage, `Loaded preset "${preset.name}".`);
+}
+
+function deleteSelectedStatEquivalencePreset() {
+  const preset = getSelectedStatEquivalencePreset();
+  if (!preset) {
+    setMessage(statEquivalenceMessage, "Choose a preset to delete.");
+    return;
+  }
+
+  statEquivalencePresets = statEquivalencePresets.filter((candidate) => candidate.id !== preset.id);
+  saveStatEquivalencePresets(undefined, statEquivalencePresets);
+  renderStatEquivalencePresetOptions();
+  statEquivalencePresetName.value = "";
+  setMessage(statEquivalenceMessage, `Deleted preset "${preset.name}".`);
+}
+
 tabs.forEach((tab) => {
   tab.addEventListener("click", () => {
     tabs.forEach((button) => button.classList.toggle("active", button === tab));
@@ -723,6 +828,16 @@ statEquivalenceParse.addEventListener("click", () => {
     setMessage(statEquivalenceMessage, error.message);
   }
 });
+
+statEquivalencePreset.addEventListener("change", () => {
+  const preset = getSelectedStatEquivalencePreset();
+  statEquivalencePresetName.value = preset?.name ?? "";
+  syncStatEquivalencePresetControls();
+});
+
+statEquivalencePresetSave.addEventListener("click", saveCurrentStatEquivalencePreset);
+statEquivalencePresetLoad.addEventListener("click", loadSelectedStatEquivalencePreset);
+statEquivalencePresetDelete.addEventListener("click", deleteSelectedStatEquivalencePreset);
 
 statRows.addEventListener("input", () => {
   updateLiveStatEquivalence();

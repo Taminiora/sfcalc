@@ -10,6 +10,7 @@ import {
 
 const PROFILE_STORAGE_KEY = "sfcalc.enhancementPlanner.profiles.v2";
 const STAT_EQUIVALENCE_STORAGE_KEY = "sfcalc.enhancementPlanner.statEquivalence.v2";
+const STAT_EQUIVALENCE_PRESET_STORAGE_KEY = "sfcalc.enhancementPlanner.statEquivalencePresets.v1";
 
 const PRESENTED_STAT_RENAMES = Object.freeze({
   DEX: "Main Stat",
@@ -21,6 +22,8 @@ const PRESENTED_STAT_RENAMES = Object.freeze({
 });
 
 const CLASS_STAT_ROLE_LABELS = Object.freeze(["Main Stat", "Secondary Stat", "Tertiary Stat"]);
+
+export const DEFAULT_STAT_EQUIVALENCE_CLASS = "wind_archer";
 
 export const DEFAULT_STAT_ROWS = Object.freeze([
   { stat: "Boss Damage", value: 40, finalDamagePercent: 3.725 },
@@ -37,6 +40,10 @@ export const DEFAULT_STAT_ROWS = Object.freeze([
   { stat: "Not Affected by % Secondary Stat", value: 200, finalDamagePercent: 0.046 },
   { stat: "All Stat%", value: 9, finalDamagePercent: 0.809 },
 ]);
+
+function validateDefaultStatEquivalenceInput() {
+  return validateStatEquivalenceInput({ className: DEFAULT_STAT_EQUIVALENCE_CLASS });
+}
 
 function getPresentedStatName(stat) {
   return PRESENTED_STAT_RENAMES[stat] ?? stat;
@@ -271,6 +278,20 @@ export function validateProfileInput(input) {
   };
 }
 
+export function validateStatEquivalencePresetInput(input) {
+  const name = String(input.name ?? "").trim();
+  if (!name) {
+    throw new Error("Preset name is required");
+  }
+  const statEquivalence = validateStatEquivalenceInput(input.statEquivalence ?? input);
+
+  return {
+    id: getId(input, "stat-equivalence-preset"),
+    name,
+    ...statEquivalence,
+  };
+}
+
 export function calculateFdGain(statGains, statEquivalence) {
   const validStatGains = validateStatGains(statGains);
   const fdPerUnitByStat = getFdPerUnitByStat(statEquivalence);
@@ -451,13 +472,13 @@ export function refreshStarforceProfileCosts(profiles) {
 export function loadStatEquivalence(storage = getDefaultStorage()) {
   const parsed = readStoredJson(storage, STAT_EQUIVALENCE_STORAGE_KEY, null);
   if (!parsed) {
-    return validateStatEquivalenceInput();
+    return validateDefaultStatEquivalenceInput();
   }
 
   try {
     return validateStatEquivalenceInput(parsed);
   } catch {
-    return validateStatEquivalenceInput();
+    return validateDefaultStatEquivalenceInput();
   }
 }
 
@@ -466,6 +487,29 @@ export function saveStatEquivalence(storage = getDefaultStorage(), statEquivalen
     storage,
     STAT_EQUIVALENCE_STORAGE_KEY,
     validateStatEquivalenceInput(statEquivalence),
+  );
+}
+
+export function loadStatEquivalencePresets(storage = getDefaultStorage()) {
+  const parsed = readStoredJson(storage, STAT_EQUIVALENCE_PRESET_STORAGE_KEY, []);
+  if (!Array.isArray(parsed)) {
+    return [];
+  }
+
+  return parsed.flatMap((preset) => {
+    try {
+      return [validateStatEquivalencePresetInput(preset)];
+    } catch {
+      return [];
+    }
+  });
+}
+
+export function saveStatEquivalencePresets(storage = getDefaultStorage(), presets) {
+  writeStoredJson(
+    storage,
+    STAT_EQUIVALENCE_PRESET_STORAGE_KEY,
+    presets.map(validateStatEquivalencePresetInput),
   );
 }
 

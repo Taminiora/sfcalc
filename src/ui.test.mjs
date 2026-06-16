@@ -46,6 +46,11 @@ test("planner stat equivalence supports scouter FD paste and manual edits", () =
   assert.equal(html.includes("stat-equivalence-class"), true);
   assert.equal(html.includes("stat-equivalence-paste"), true);
   assert.equal(html.includes("Parse Scouter paste"), true);
+  assert.equal(html.includes("stat-equivalence-preset"), true);
+  assert.equal(html.includes("stat-equivalence-preset-name"), true);
+  assert.equal(html.includes("Save preset"), true);
+  assert.equal(html.includes("Load"), true);
+  assert.equal(html.includes("Delete"), true);
   assert.equal(html.includes("Save manual values"), false);
   assert.equal(html.includes("Image"), false);
   assert.equal(html.includes("stat-equivalence-rows"), true);
@@ -55,6 +60,8 @@ test("planner stat equivalence supports scouter FD paste and manual edits", () =
   assert.equal(html.includes("profile-p75-cost"), false);
   assert.equal(html.includes("profile-p95-cost"), false);
   assert.equal(script.includes("parseScouterFinalDamageTable"), true);
+  assert.equal(script.includes("loadStatEquivalencePresets"), true);
+  assert.equal(script.includes("saveStatEquivalencePresets"), true);
   assert.equal(script.includes("renderClassOptions"), true);
 });
 
@@ -72,8 +79,9 @@ test("planner stat equivalence card is compact and collapsible", () => {
 
 test("planner defaults stat equivalence class input to Wind Archer", () => {
   const script = readFileSync(new URL("./planner.mjs", import.meta.url), "utf8");
+  const profiles = readFileSync(new URL("./profiles.mjs", import.meta.url), "utf8");
 
-  assert.equal(script.includes('const DEFAULT_STAT_EQUIVALENCE_CLASS = "wind_archer"'), true);
+  assert.equal(profiles.includes('export const DEFAULT_STAT_EQUIVALENCE_CLASS = "wind_archer"'), true);
   assert.equal(script.includes("|| DEFAULT_STAT_EQUIVALENCE_CLASS"), true);
   assert.equal(script.includes('|| "night_lord"'), false);
 });
