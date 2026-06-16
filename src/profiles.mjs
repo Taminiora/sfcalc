@@ -41,6 +41,179 @@ export const DEFAULT_STAT_ROWS = Object.freeze([
   { stat: "All Stat%", value: 9, finalDamagePercent: 0.809 },
 ]);
 
+const DEFAULT_STARFORCE_EVENTS = Object.freeze({
+  starCatch: true,
+  costReduction30: true,
+  boomReduction30: true,
+});
+
+function createDefaultStarforceProfile({
+  id,
+  name,
+  itemLevel,
+  startStar,
+  targetStar,
+  spareCount,
+  notes = "",
+}) {
+  const source = {
+    itemType: "armor",
+    itemLevel,
+    startStar,
+    targetStar,
+    hitProbability: 0.85,
+    events: DEFAULT_STARFORCE_EVENTS,
+  };
+  if (spareCount !== undefined) {
+    source.spareCount = spareCount;
+  }
+
+  return {
+    id,
+    name,
+    type: "starforce",
+    statGains: {},
+    p50Cost: 1,
+    p75Cost: 1,
+    p95Cost: 1,
+    notes,
+    source,
+  };
+}
+
+function createDefaultCubingProfile({
+  id,
+  name,
+  itemType,
+  target,
+  targetLabel,
+  statGains,
+  notes = "",
+}) {
+  return {
+    id,
+    name,
+    type: "cubing",
+    statGains,
+    p50Cost: 1,
+    p75Cost: 1,
+    p95Cost: 1,
+    notes,
+    source: {
+      cubeType: "black",
+      itemType,
+      itemLevel: 250,
+      cubeSale: false,
+      desiredTier: "legendary",
+      target,
+      targetLabel,
+    },
+  };
+}
+
+export const DEFAULT_PROFILE_INPUTS = Object.freeze([
+  createDefaultStarforceProfile({
+    id: "recommended-sf-18-22-armor-250",
+    name: "18★ → 22★ armor (250)",
+    itemLevel: 250,
+    startStar: 18,
+    targetStar: 22,
+    notes: "Common pitched-boss catch-up comparison.",
+  }),
+  createDefaultStarforceProfile({
+    id: "recommended-sf-21-22-armor-250",
+    name: "21★ → 22★ armor (250)",
+    itemLevel: 250,
+    startStar: 21,
+    targetStar: 22,
+    notes: "Baseline full-SG 21 to 22 comparison.",
+  }),
+  createDefaultStarforceProfile({
+    id: "recommended-sf-22-23-armor-160",
+    name: "22★ → 23★ armor (160)",
+    itemLevel: 160,
+    startStar: 22,
+    targetStar: 23,
+  }),
+  createDefaultStarforceProfile({
+    id: "recommended-sf-22-23-armor-200",
+    name: "22★ → 23★ armor (200)",
+    itemLevel: 200,
+    startStar: 22,
+    targetStar: 23,
+  }),
+  createDefaultStarforceProfile({
+    id: "recommended-sf-22-23-armor-250",
+    name: "22★ → 23★ armor (250)",
+    itemLevel: 250,
+    startStar: 22,
+    targetStar: 23,
+  }),
+  createDefaultStarforceProfile({
+    id: "recommended-sf-23-24-armor-250",
+    name: "23★ → 24★ armor (250)",
+    itemLevel: 250,
+    startStar: 23,
+    targetStar: 24,
+  }),
+  createDefaultStarforceProfile({
+    id: "recommended-sf-24-25-armor-250",
+    name: "24★ → 25★ armor (250)",
+    itemLevel: 250,
+    startStar: 24,
+    targetStar: 25,
+  }),
+  createDefaultCubingProfile({
+    id: "recommended-cube-emblem-double-prime-attack",
+    name: "Emblem: 33% → double-prime attack",
+    itemType: "emblem",
+    target: "percAtt+36",
+    targetLabel: "36%+ Attack/Magic Attack",
+    statGains: { "Attack%": 3 },
+  }),
+  createDefaultCubingProfile({
+    id: "recommended-cube-secondary-double-prime-attack",
+    name: "Secondary: 33% → double-prime attack",
+    itemType: "secondary",
+    target: "percAtt+36",
+    targetLabel: "36%+ Attack/Magic Attack",
+    statGains: { "Attack%": 3 },
+  }),
+  createDefaultCubingProfile({
+    id: "recommended-cube-weapon-23-40",
+    name: "Weapon: 33% attack → 23/40",
+    itemType: "weapon",
+    target: "percAtt+23&percBoss+40",
+    targetLabel: "23%+ Attack/Magic Attack and 40%+ Boss",
+    statGains: { "Attack%": -10, "Boss Damage": 40 },
+  }),
+  createDefaultCubingProfile({
+    id: "recommended-cube-gloves-triple-crit",
+    name: "Gloves: 2L crit+stat → 3L crit",
+    itemType: "gloves",
+    target: "lineCritDamage+3",
+    targetLabel: "3L Crit Damage",
+    statGains: { "Critical Dmg": 8, "Main Stat%": -12 },
+  }),
+  createDefaultCubingProfile({
+    id: "recommended-cube-hat-minus-4-stat",
+    name: "Hat: -4s cooldown + stat",
+    itemType: "hat",
+    target: "secCooldown+4&lineStat+1",
+    targetLabel: "-4s Cooldown + stat",
+    statGains: { "Main Stat%": 12 },
+    notes: "Cooldown FD is not included; edit stat changes if your class values CDR.",
+  }),
+  createDefaultCubingProfile({
+    id: "recommended-cube-armor-double-prime-stat",
+    name: "Armor: 3L stat → double-prime stat",
+    itemType: "top",
+    target: "percStat+36",
+    targetLabel: "36%+ main stat",
+    statGains: { "Main Stat%": 3 },
+  }),
+]);
+
 function validateDefaultStatEquivalenceInput() {
   return validateStatEquivalenceInput({ className: DEFAULT_STAT_EQUIVALENCE_CLASS });
 }
@@ -107,6 +280,14 @@ function writeStoredJson(storage, key, value) {
     storage?.setItem(key, JSON.stringify(value));
   } catch {
     // Private browsing and quota failures should not break calculator use.
+  }
+}
+
+function readStoredRaw(storage, key) {
+  try {
+    return storage?.getItem(key) ?? null;
+  } catch {
+    return null;
   }
 }
 
@@ -469,6 +650,10 @@ export function refreshStarforceProfileCosts(profiles) {
   });
 }
 
+function getDefaultProfiles() {
+  return refreshStarforceProfileCosts(DEFAULT_PROFILE_INPUTS);
+}
+
 export function loadStatEquivalence(storage = getDefaultStorage()) {
   const parsed = readStoredJson(storage, STAT_EQUIVALENCE_STORAGE_KEY, null);
   if (!parsed) {
@@ -514,7 +699,18 @@ export function saveStatEquivalencePresets(storage = getDefaultStorage(), preset
 }
 
 export function loadProfiles(storage = getDefaultStorage()) {
-  const parsed = readStoredJson(storage, PROFILE_STORAGE_KEY, []);
+  const raw = readStoredRaw(storage, PROFILE_STORAGE_KEY);
+  if (raw === null) {
+    return getDefaultProfiles();
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+
   if (!Array.isArray(parsed)) {
     return [];
   }

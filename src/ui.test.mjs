@@ -275,6 +275,21 @@ test("planner saved upgrades show cost and strategy without p50/p75 controls", (
   assert.match(css, /\.saved-upgrades-table th,[\s\S]*?\.saved-upgrades-table td\s*\{[\s\S]*?white-space: normal/s);
 });
 
+test("planner can clear all saved upgrades with confirmation", () => {
+  const html = readFileSync(new URL("../planner.html", import.meta.url), "utf8");
+  const script = readFileSync(new URL("./planner.mjs", import.meta.url), "utf8");
+
+  assert.equal(html.includes('id="profile-clear-all"'), true);
+  assert.equal(html.includes("Clear saved upgrades"), true);
+  assert.equal(script.includes('const profileClearAll = document.querySelector("#profile-clear-all")'), true);
+  assert.equal(script.includes("profileClearAll.disabled = metrics.length === 0"), true);
+  assert.equal(script.includes("window.confirm"), true);
+  assert.equal(script.includes("Clear all saved upgrades?"), true);
+  assert.equal(script.includes("profiles = [];"), true);
+  assert.equal(script.includes("saveProfiles(undefined, profiles);"), true);
+  assert.equal(script.includes("setMessage(profileMessage, \"Cleared saved upgrades.\")"), true);
+});
+
 test("planner refreshes saved upgrade efficiency when manual stat values change", () => {
   const script = readFileSync(new URL("./planner.mjs", import.meta.url), "utf8");
 
@@ -387,6 +402,15 @@ test("planner keeps the manual stat save button compact", () => {
   assert.equal(html.includes("Save manual values"), false);
   assert.match(css, /\.compact-button\s*\{[^}]*justify-self: start/s);
   assert.match(css, /\.compact-button\s*\{[^}]*width: fit-content/s);
+});
+
+test("planner keeps save-upgrade actions compact beside wide saved tables", () => {
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+
+  assert.match(css, /\.button-row\s*\{[\s\S]*?align-items: center/s);
+  assert.match(css, /\.button-row\s*\{[\s\S]*?justify-content: flex-start/s);
+  assert.match(css, /\.button-row \.primary-button\s*\{[\s\S]*?max-width: 150px/s);
+  assert.match(css, /\.button-row \.primary-button\s*\{[\s\S]*?white-space: normal/s);
 });
 
 test("planner accepts item type for saved and optimized SF targets", () => {

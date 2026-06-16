@@ -45,6 +45,7 @@ const profileRows = document.querySelector("#profile-rows");
 const profileEmpty = document.querySelector("#profile-empty");
 const profileMessage = document.querySelector("#profile-message");
 const profileReset = document.querySelector("#profile-reset");
+const profileClearAll = document.querySelector("#profile-clear-all");
 const profileSfAutoGains = document.querySelector("#profile-sf-auto-gains");
 const profileStatGains = document.querySelector("#profile-stat-gains");
 const profileCubingStatGains = document.querySelector("#profile-cubing-stat-gains");
@@ -495,6 +496,7 @@ function formatSavedTargetOdds(profile) {
 function renderProfiles() {
   const metrics = getProfileMetrics();
   profileEmpty.hidden = metrics.length > 0;
+  profileClearAll.disabled = metrics.length === 0;
   profileRows.replaceChildren(
     ...metrics.map((profile) => {
       const row = document.createElement("tr");
@@ -904,6 +906,18 @@ profileForm.addEventListener("submit", (event) => {
 });
 
 profileReset.addEventListener("click", clearProfileForm);
+profileClearAll.addEventListener("click", () => {
+  if (!window.confirm("Clear all saved upgrades? This cannot be undone.")) {
+    return;
+  }
+
+  profiles = [];
+  saveProfiles(undefined, profiles);
+  renderProfiles();
+  renderBenchmarkOptions();
+  renderOptimizer();
+  setMessage(profileMessage, "Cleared saved upgrades.");
+});
 profileFields.upgradeType.addEventListener("change", renderProfileMode);
 profileFields.cubingItemType.addEventListener("change", () => renderCubingTargetOptions());
 profileFields.cubingItemLevel.addEventListener("input", () => renderCubingTargetOptions());

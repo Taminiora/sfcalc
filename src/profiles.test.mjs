@@ -383,6 +383,46 @@ test("refreshes stored cubing costs from source settings", () => {
   assert.equal(profile.source.percentileCosts.p95Cost, profile.source.percentileCosts.p85Cost);
 });
 
+test("loads recommended saved upgrades when no profile library exists", () => {
+  const profiles = loadProfiles(new MapStorage());
+  const names = profiles.map((profile) => profile.name);
+
+  assert.ok(profiles.length >= 10);
+  assert.deepEqual(
+    [
+      "21★ → 22★ armor (250)",
+      "22★ → 23★ armor (160)",
+      "24★ → 25★ armor (250)",
+      "Emblem: 33% → double-prime attack",
+      "Weapon: 33% attack → 23/40",
+      "Gloves: 2L crit+stat → 3L crit",
+      "Hat: -4s cooldown + stat",
+    ].every((name) => names.includes(name)),
+    true,
+  );
+  assert.ok(profiles.every((profile) => Number.isFinite(profile.p95Cost) && profile.p95Cost > 1));
+  assert.ok(profiles.every((profile) => profile.source?.percentileCosts));
+  assert.equal(
+    profiles.find((profile) => profile.name === "Emblem: 33% → double-prime attack")?.source.target,
+    "percAtt+36",
+  );
+  assert.equal(
+    profiles.find((profile) => profile.name === "Secondary: 33% → double-prime attack")?.source.target,
+    "percAtt+36",
+  );
+  assert.equal(
+    profiles.find((profile) => profile.name === "Armor: 3L stat → double-prime stat")?.source.target,
+    "percStat+36",
+  );
+});
+
+test("keeps an explicitly empty saved upgrade library empty", () => {
+  const storage = new MapStorage();
+  storage.setItem("sfcalc.enhancementPlanner.profiles.v2", JSON.stringify([]));
+
+  assert.deepEqual(loadProfiles(storage), []);
+});
+
 test("saves and loads stat-equivalence rows and profiles", () => {
   const storage = new MapStorage();
   const statEquivalence = validateStatEquivalenceInput({
