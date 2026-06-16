@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhancement Planner</title>
+    <link rel="stylesheet" href="./src/styles.css">
+  </head>
+  <body>
+    <main class="app-shell planner-shell">
+      <section class="topbar planner-topbar">
+        <div>
+          <p class="eyebrow">Enhancement Planner</p>
+          <h1>Upgrade efficiency</h1>
+        </div>
+        <nav class="planner-tabs" aria-label="Planner tabs">
+          <button class="tab-button active" data-tab="library" type="button">Upgrade Library</button>
+          <button class="tab-button" data-tab="optimizer" type="button">SF Optimization</button>
+        </nav>
+      </section>
+
+      <section class="planner-panel" data-panel="library">
+        <details class="planner-card stat-equivalence-card" open>
+          <summary class="stat-equivalence-summary">
+            <div>
+              <h2>Stat equivalence</h2>
+              <p class="subtle-copy">Paste Scouter Final Damage% rows or edit values manually; <a href="https://satsivi.github.io/maple_data_parser/" rel="noreferrer" target="_blank">get your numbers here</a>.</p>
+            </div>
+          </summary>
+
+          <form class="planner-form" id="stat-equivalence-form">
+            <section class="paste-panel" aria-label="Scouter FD paste">
+              <label class="short-select">
+                <span>Class</span>
+                <select id="stat-equivalence-class"></select>
+              </label>
+              <label>
+                <span>Scouter FD paste</span>
+                <textarea id="stat-equivalence-paste" rows="5" placeholder="Paste Scouter Stat Efficiency rows with the Final Damage% column"></textarea>
+              </label>
+              <button class="ghost-button compact-button" id="stat-equivalence-parse" type="button">Parse Scouter paste</button>
+            </section>
+            <div class="table-wrap">
+              <table class="planner-table stat-table">
+                <thead>
+                  <tr>
+                    <th>Stat</th>
+                    <th>Value</th>
+                    <th>Final Damage</th>
+                  </tr>
+                </thead>
+                <tbody id="stat-equivalence-rows"></tbody>
+              </table>
+            </div>
+          </form>
+
+          <p class="error-message" id="stat-equivalence-message" role="alert"></p>
+        </details>
+
+        <section class="planner-grid">
+          <form class="planner-card planner-form" id="profile-form">
+            <div>
+              <h2>Save upgrade</h2>
+              <p class="subtle-copy">Save SF and cubing benchmark upgrades.</p>
+            </div>
+            <label>
+              <span>Name</span>
+              <input id="profile-name" required type="text" value="21 to 22 armor">
+            </label>
+            <label class="short-select">
+              <span>Upgrade type</span>
+              <select id="profile-upgrade-type">
+                <option value="starforce">Star Force</option>
+                <option value="cubing">Cubing</option>
+              </select>
+            </label>
+            <section class="profile-mode-fields" id="profile-sf-fields">
+              <label>
+                <span>Item type</span>
+                <select id="profile-item-type">
+                  <option value="weapon">Weapon</option>
+                  <option value="armor" selected>Armor</option>
+                  <option value="glove">Glove</option>
+                  <option value="accessory">Accessory</option>
+                  <option value="secondary">Secondary</option>
+                </select>
+              </label>
+              <div class="three-col compact-number-grid">
+                <label>
+                  <span>Item level</span>
+                  <input id="profile-item-level" inputmode="numeric" min="1" step="1" type="number" value="250">
+                </label>
+                <label>
+                  <span>Start star</span>
+                  <input id="profile-start-star" inputmode="numeric" max="24" min="0" step="1" type="number" value="21">
+                </label>
+                <label>
+                  <span>Target star</span>
+                  <input id="profile-target-star" inputmode="numeric" max="25" min="1" step="1" type="number" value="22">
+                </label>
+              </div>
+              <div class="two-col compact-number-grid">
+                <label>
+                  <span>Available spares</span>
+                  <input id="profile-spare-count" inputmode="numeric" min="0" step="1" type="number" value="6">
+                </label>
+                <label>
+                  <span>Target odds (%)</span>
+                  <input id="profile-hit-probability" inputmode="decimal" max="99.99" min="1" step="0.1" type="number" value="85">
+                </label>
+                <span class="field-hint compact-grid-hint">Higher odds protect against bad tails.</span>
+              </div>
+              <fieldset class="event-box">
+                <legend>Events</legend>
+                <label class="checkbox-label">
+                  <input id="profile-event-star-catch" checked type="checkbox">
+                  <span>Star catch</span>
+                </label>
+                <label class="checkbox-label">
+                  <input id="profile-event-cost-reduction" checked type="checkbox">
+                  <span>30% base-cost reduction</span>
+                </label>
+                <label class="checkbox-label">
+                  <input id="profile-event-boom-reduction" checked type="checkbox">
+                  <span>30% boom reduction</span>
+                </label>
+              </fieldset>
+              <section class="stat-change-preview" aria-label="Star Force stat changes">
+                <h3>Star Force stat changes</h3>
+                <div class="stat-change-list" id="profile-sf-auto-gains"></div>
+              </section>
+              <details class="stat-gain-details">
+                <summary>Additional stat changes</summary>
+                <div class="stat-gain-grid" id="profile-stat-gains"></div>
+              </details>
+            </section>
+            <section class="profile-mode-fields hidden" id="profile-cubing-fields">
+              <section class="cubing-config-panel" aria-labelledby="cubing-target-heading">
+                <h3 id="cubing-target-heading">Cubing target</h3>
+                <div class="three-col compact-number-grid">
+                  <label>
+                    <span>Item level</span>
+                    <input id="profile-cubing-item-level" inputmode="numeric" min="71" step="1" type="number" value="250">
+                  </label>
+                  <label>
+                    <span>Cube</span>
+                    <select id="profile-cube-type">
+                      <option value="red">Glowing/Red</option>
+                      <option value="black">Bright/Black</option>
+                      <option value="master">Hard/Master</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Tier</span>
+                    <select id="profile-cubing-desired-tier">
+                      <option value="legendary">Legendary</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="two-col cubing-target-grid">
+                  <label>
+                    <span>Item type</span>
+                    <select id="profile-cubing-item-type">
+                      <option value="accessory">Accessory</option>
+                      <option value="badge">Badge</option>
+                      <option value="belt">Belt</option>
+                      <option value="bottom">Bottom</option>
+                      <option value="cape">Cape</option>
+                      <option value="emblem">Emblem</option>
+                      <option value="gloves">Gloves</option>
+                      <option value="hat">Hat</option>
+                      <option value="heart">Heart</option>
+                      <option value="overall">Overall</option>
+                      <option value="top">Top</option>
+                      <option value="secondary">Secondary</option>
+                      <option value="shoes">Shoes</option>
+                      <option value="shoulder">Shoulder</option>
+                      <option value="weapon" selected>Weapon</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Target strategy</span>
+                    <select id="profile-cubing-target"></select>
+                  </label>
+                </div>
+                <label class="checkbox-label">
+                  <input id="profile-cube-sale" type="checkbox">
+                  <span>Cube sale (30% off cube cost)</span>
+                </label>
+              </section>
+              <details class="stat-gain-details" open>
+                <summary>Stat changes</summary>
+                <div class="stat-gain-grid" id="profile-cubing-stat-gains"></div>
+              </details>
+            </section>
+            <label>
+              <span>Notes</span>
+              <textarea id="profile-notes" rows="3"></textarea>
+            </label>
+            <div class="button-row">
+              <button class="primary-button" type="submit">Calculate and save</button>
+              <button class="ghost-button" id="profile-reset" type="button">Clear</button>
+            </div>
+            <p class="error-message" id="profile-message" role="alert"></p>
+          </form>
+
+          <section class="planner-card">
+            <div class="section-heading">
+              <div>
+                <h2>Saved upgrades</h2>
+                <p class="subtle-copy">Cost and strategy are computed from the saved target.</p>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table class="planner-table saved-upgrades-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Strategy</th>
+                    <th>Expected</th>
+                    <th>FD</th>
+                    <th>85% odds</th>
+                    <th>FD/meso</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="profile-rows"></tbody>
+              </table>
+            </div>
+            <p class="empty-state" id="profile-empty">No upgrades saved yet.</p>
+          </section>
+        </section>
+      </section>
+
+      <section class="planner-panel hidden" data-panel="optimizer">
+        <section class="planner-grid optimizer-grid">
+          <form class="planner-card planner-form" id="optimizer-form">
+            <div>
+              <h2>SF target</h2>
+              <p class="subtle-copy">Choose a saved profile as the efficiency benchmark.</p>
+            </div>
+            <label>
+              <span>Benchmark upgrade</span>
+              <select id="benchmark-profile"></select>
+            </label>
+            <label>
+              <span>Item type</span>
+              <select id="optimizer-item-type">
+                <option value="weapon">Weapon</option>
+                <option value="armor">Armor</option>
+                <option value="glove">Glove</option>
+                <option value="accessory">Accessory</option>
+                <option value="secondary">Secondary</option>
+              </select>
+            </label>
+            <div class="three-col compact-number-grid">
+              <label>
+                <span>Item level</span>
+                <input id="optimizer-item-level" inputmode="numeric" min="1" step="1" type="number" value="250">
+              </label>
+              <label>
+                <span>Start star</span>
+                <input id="optimizer-start-star" inputmode="numeric" max="24" min="0" step="1" type="number" value="15">
+              </label>
+              <label>
+                <span>Target star</span>
+                <input id="optimizer-target-star" inputmode="numeric" max="25" min="1" step="1" type="number" value="22">
+              </label>
+            </div>
+            <section class="stat-change-preview" aria-label="Star Force stat changes">
+              <h3>Star Force stat changes</h3>
+              <div class="stat-change-list" id="optimizer-sf-auto-gains"></div>
+            </section>
+            <details class="stat-gain-details">
+              <summary>Additional stat changes</summary>
+              <div class="stat-gain-grid" id="optimizer-stat-gains"></div>
+            </details>
+            <div class="two-col compact-number-grid">
+              <label>
+                <span>Target odds (%)</span>
+                <input id="optimizer-hit-probability" inputmode="decimal" max="99.99" min="1" step="0.1" type="number" value="85">
+              </label>
+              <span class="field-hint compact-grid-hint">Higher odds protect against bad tails.</span>
+            </div>
+            <fieldset class="event-box">
+              <legend>Events</legend>
+              <label class="checkbox-label">
+                <input id="event-star-catch" checked type="checkbox">
+                <span>Star catch</span>
+              </label>
+              <label class="checkbox-label">
+                <input id="event-cost-reduction" checked type="checkbox">
+                <span>30% base-cost reduction</span>
+              </label>
+              <label class="checkbox-label">
+                <input id="event-boom-reduction" checked type="checkbox">
+                <span>30% boom reduction</span>
+              </label>
+            </fieldset>
+            <p class="error-message" id="optimizer-message" role="alert"></p>
+          </form>
+
+          <section class="planner-card results-card">
+            <div class="section-heading">
+              <div>
+                <h2>Recommendation</h2>
+                <p class="subtle-copy" id="optimizer-context">Save a benchmark upgrade to begin.</p>
+              </div>
+              <span class="status-pill neutral" id="result-benchmark-outcome">No benchmark</span>
+            </div>
+            <div class="planner-metrics">
+              <article class="planner-metric">
+                <span>Strategy</span>
+                <strong id="result-strategy">-</strong>
+              </article>
+              <article class="planner-metric">
+                <span>Spares for target odds</span>
+                <strong id="result-spares">-</strong>
+              </article>
+              <article class="planner-metric">
+                <span>Hit odds</span>
+                <strong id="result-probability">-</strong>
+              </article>
+              <article class="planner-metric">
+                <span>Expected meso</span>
+                <strong id="result-total">-</strong>
+              </article>
+              <article class="planner-metric">
+                <span>Expected booms</span>
+                <strong id="result-expected-booms">-</strong>
+              </article>
+              <article class="planner-metric">
+                <span>Recommendation FD/meso</span>
+                <strong id="result-fd-per-meso">-</strong>
+              </article>
+              <article class="planner-metric">
+                <span>Benchmark FD/meso</span>
+                <strong id="result-benchmark-fd-per-meso">-</strong>
+              </article>
+              <article class="planner-metric">
+                <span>Benchmark status</span>
+                <strong id="result-benchmark-status">-</strong>
+              </article>
+            </div>
+            <details class="stat-breakdown-details">
+              <summary>FD breakdown</summary>
+              <div class="table-wrap stat-breakdown-wrap">
+                <table class="planner-table stat-breakdown-table">
+                  <thead>
+                    <tr>
+                      <th>Stat</th>
+                      <th>Auto SF</th>
+                      <th>Manual</th>
+                      <th>Net</th>
+                      <th>FD</th>
+                    </tr>
+                  </thead>
+                  <tbody id="stat-breakdown-rows"></tbody>
+                </table>
+              </div>
+            </details>
+            <div class="table-wrap">
+              <table class="planner-table">
+                <thead>
+                  <tr>
+                    <th>Tap</th>
+                    <th>Mode</th>
+                    <th>Success</th>
+                    <th>Boom</th>
+                    <th>Expected meso</th>
+                  </tr>
+                </thead>
+                <tbody id="strategy-rows"></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+      </section>
+    </main>
+
+    <script type="module" src="./src/planner.mjs"></script>
+  </body>
+</html>

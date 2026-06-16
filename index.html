@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SF Calc</title>
+    <link rel="stylesheet" href="./src/styles.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="topbar">
+        <div>
+          <p class="eyebrow">Starforce optimizer</p>
+          <h1>SF Calc</h1>
+        </div>
+      </section>
+
+      <section class="workspace">
+        <form class="inputs" id="calculator-form">
+          <label>
+            <span>Item level</span>
+            <input id="item-level" inputmode="numeric" min="1" step="1" type="number" value="160">
+          </label>
+
+          <div class="star-range">
+            <label>
+              <span>Start star</span>
+              <input id="start-star" inputmode="numeric" max="24" min="0" step="1" type="number" value="15">
+            </label>
+            <label>
+              <span>End star</span>
+              <input id="end-star" inputmode="numeric" max="25" min="1" step="1" type="number" value="22">
+            </label>
+          </div>
+
+          <label>
+            <span>Cost per spare</span>
+            <input id="spare-cost" inputmode="decimal" type="text" value="5,000,000,000">
+          </label>
+
+          <p class="error-message" id="error-message" role="alert"></p>
+        </form>
+
+        <section class="results">
+          <div class="summary-grid">
+            <article class="metric">
+              <span>Expected booms</span>
+              <strong id="expected-booms">0</strong>
+            </article>
+            <article class="metric">
+              <span>Expected meso</span>
+              <strong id="expected-meso">0</strong>
+            </article>
+            <article class="metric">
+              <span>Meso + spares</span>
+              <strong id="expected-total">0</strong>
+            </article>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Tap</th>
+                  <th>Best level</th>
+                  <th>Success</th>
+                  <th>Boom</th>
+                  <th>Tap cost</th>
+                  <th>Expected booms</th>
+                  <th>Expected meso</th>
+                  <th>Meso + spares</th>
+                </tr>
+              </thead>
+              <tbody id="result-rows"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script type="module" src="./src/app.mjs"></script>
+  </body>
+</html>

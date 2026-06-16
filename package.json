@@ -1,0 +1,12 @@
+{
+  "name": "sfcalc",
+  "version": "0.0.1",
+  "description": "Static MapleStory enhancement planner for Star Force and cubing upgrade comparisons.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "python3 -m http.server 5173 --bind 127.0.0.1",
+    "test": "node --test",
+    "dev": "python3 -m http.server 5173 --bind 127.0.0.1"
+  }
+}
