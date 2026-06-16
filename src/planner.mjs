@@ -13,6 +13,7 @@ import {
   calculateStarforceFdGain,
   deriveProfileMetrics,
   expandClassStatGains,
+  getRecommendedProfiles,
   loadProfiles,
   loadStatEquivalence,
   loadStatEquivalencePresets,
@@ -46,6 +47,8 @@ const profileEmpty = document.querySelector("#profile-empty");
 const profileMessage = document.querySelector("#profile-message");
 const profileReset = document.querySelector("#profile-reset");
 const profileClearAll = document.querySelector("#profile-clear-all");
+const profileRestoreRecommended = document.querySelector("#profile-restore-recommended");
+const profileSortButtons = document.querySelectorAll("[data-profile-sort]");
 const profileSfAutoGains = document.querySelector("#profile-sf-auto-gains");
 const profileStatGains = document.querySelector("#profile-stat-gains");
 const profileCubingStatGains = document.querySelector("#profile-cubing-stat-gains");
@@ -104,9 +107,12 @@ const resultFields = {
   benchmarkOutcome: document.querySelector("#result-benchmark-outcome"),
 };
 
+const FD_PER_BILLION_MESO = 1_000_000_000;
+
 let profiles = refreshStarforceProfileCosts(loadProfiles());
 let statEquivalence = loadStatEquivalence();
 let statEquivalencePresets = loadStatEquivalencePresets();
+let profileSort = { key: "fdPerMesoP95", direction: "desc" };
 saveProfiles(undefined, profiles);
 saveStatEquivalence(undefined, statEquivalence);
 saveStatEquivalencePresets(undefined, statEquivalencePresets);
@@ -163,7 +169,7 @@ function getSignedClass(value) {
 }
 
 function formatEfficiency(value) {
-  return value.toExponential(3);
+  return (value * FD_PER_BILLION_MESO).toFixed(5);
 }
 
 function setMessage(element, message) {
@@ -303,6 +309,26 @@ function formatClassName(className) {
     .join(" ");
 }
 
+function formatItemTypeName(itemType) {
+  return String(itemType ?? "")
+    .split(/[\s_-]+/)
+    .filter(Boolean)
+    .map((word) => `${word[0].toUpperCase()}${word.slice(1)}`)
+    .join(" ");
+}
+
+function getDefaultProfileName({ isCubing, source }) {
+  if (isCubing) {
+    return `${formatItemTypeName(source.itemType)}: ${source.targetLabel ?? source.target}`;
+  }
+
+  return `${source.startStar}★ → ${source.targetStar}★ level ${source.itemLevel} ${source.itemType}`;
+}
+
+function getProfileName({ isCubing, source }) {
+  return profileFields.name.value.trim() || getDefaultProfileName({ isCubing, source });
+}
+
 function renderClassOptions() {
   const selectedValue =
     statEquivalence.className || statEquivalenceClass.value || DEFAULT_STAT_EQUIVALENCE_CLASS;
@@ -429,6 +455,79 @@ function getProfileMetrics() {
   return profiles.map((profile) => deriveProfileMetrics(profile, statEquivalence));
 }
 
+function getSavedExpectedSortValue(profile) {
+  const costs = profile.source?.percentileCosts ?? {};
+  if (profile.type === "cubing") {
+    return Number(costs.expectedCost);
+  }
+  return Number(costs.expectedMeso ?? profile.p95Cost);
+}
+
+function getSavedTargetOddsSortValue(profile) {
+  const costs = profile.source?.percentileCosts ?? {};
+  if (profile.type === "cubing") {
+    return Number(costs.p85Cost ?? profile.p95Cost);
+  }
+  return Number(costs.p85Cost ?? costs.expectedMeso ?? profile.p95Cost);
+}
+
+const PROFILE_SORTERS = {
+  expected: getSavedExpectedSortValue,
+  fdGain: (profile) => Number(profile.fdGain),
+  targetOdds: getSavedTargetOddsSortValue,
+  fdPerMesoP95: (profile) => Number(profile.fdPerMesoP95),
+};
+
+function compareProfileSortValues(left, right) {
+  const leftIsFinite = Number.isFinite(left);
+  const rightIsFinite = Number.isFinite(right);
+  if (!leftIsFinite && !rightIsFinite) {
+    return 0;
+  }
+  if (!leftIsFinite) {
+    return 1;
+  }
+  if (!rightIsFinite) {
+    return -1;
+  }
+  return left - right;
+}
+
+function getSortedProfileMetrics(metrics = getProfileMetrics()) {
+  const getSortValue = PROFILE_SORTERS[profileSort.key] ?? PROFILE_SORTERS.fdPerMesoP95;
+  const direction = profileSort.direction === "asc" ? 1 : -1;
+  return [...metrics].sort((left, right) => {
+    const leftValue = getSortValue(left);
+    const rightValue = getSortValue(right);
+    const leftIsFinite = Number.isFinite(leftValue);
+    const rightIsFinite = Number.isFinite(rightValue);
+    if (!leftIsFinite || !rightIsFinite) {
+      const sortResult = compareProfileSortValues(leftValue, rightValue);
+      return sortResult || left.name.localeCompare(right.name);
+    }
+    const sortResult = (leftValue - rightValue) * direction;
+    if (sortResult !== 0) {
+      return sortResult;
+    }
+    return left.name.localeCompare(right.name);
+  });
+}
+
+function renderProfileSortControls() {
+  profileSortButtons.forEach((button) => {
+    const isActive = button.dataset.profileSort === profileSort.key;
+    const indicator = button.querySelector(".sort-indicator");
+    const header = button.closest("th");
+    const sortLabel = profileSort.direction === "asc" ? "ascending" : "descending";
+    if (indicator) {
+      indicator.textContent = isActive ? (profileSort.direction === "asc" ? "▲" : "▼") : "";
+    }
+    if (header) {
+      header.setAttribute("aria-sort", isActive ? sortLabel : "none");
+    }
+  });
+}
+
 function formatSavedStrategy(profile) {
   if (profile.type === "cubing") {
     return profile.source?.targetLabel ?? profile.source?.percentileCosts?.strategy ?? profile.source?.target ?? "-";
@@ -494,9 +593,10 @@ function formatSavedTargetOdds(profile) {
 }
 
 function renderProfiles() {
-  const metrics = getProfileMetrics();
+  const metrics = getSortedProfileMetrics();
   profileEmpty.hidden = metrics.length > 0;
   profileClearAll.disabled = metrics.length === 0;
+  renderProfileSortControls();
   profileRows.replaceChildren(
     ...metrics.map((profile) => {
       const row = document.createElement("tr");
@@ -727,6 +827,12 @@ function renderAll() {
   renderOptimizer();
 }
 
+function renderSavedProfileDependents() {
+  renderProfiles();
+  renderBenchmarkOptions();
+  renderOptimizer();
+}
+
 function updateLiveStatEquivalence({ statusMessage = "" } = {}) {
   try {
     statEquivalence = validateStatEquivalenceInput({
@@ -880,7 +986,7 @@ profileForm.addEventListener("submit", (event) => {
       : calculateStarforceProfileCosts(source);
     const profile = validateProfileInput({
       id: editingId,
-      name: profileFields.name.value,
+      name: getProfileName({ isCubing, source }),
       type: isCubing ? "cubing" : "starforce",
       statGains: getActiveProfileStatGains(),
       p50Cost: costs.p50Cost,
@@ -906,6 +1012,16 @@ profileForm.addEventListener("submit", (event) => {
 });
 
 profileReset.addEventListener("click", clearProfileForm);
+profileRestoreRecommended.addEventListener("click", () => {
+  if (!window.confirm("Replace saved upgrades with the recommended starter list?")) {
+    return;
+  }
+
+  profiles = getRecommendedProfiles();
+  saveProfiles(undefined, profiles);
+  renderSavedProfileDependents();
+  setMessage(profileMessage, "Restored recommended saved upgrades.");
+});
 profileClearAll.addEventListener("click", () => {
   if (!window.confirm("Clear all saved upgrades? This cannot be undone.")) {
     return;
@@ -913,9 +1029,7 @@ profileClearAll.addEventListener("click", () => {
 
   profiles = [];
   saveProfiles(undefined, profiles);
-  renderProfiles();
-  renderBenchmarkOptions();
-  renderOptimizer();
+  renderSavedProfileDependents();
   setMessage(profileMessage, "Cleared saved upgrades.");
 });
 profileFields.upgradeType.addEventListener("change", renderProfileMode);
@@ -930,6 +1044,18 @@ optimizerFields.itemType.addEventListener("change", renderOptimizerStarforceGain
 optimizerFields.itemLevel.addEventListener("input", renderOptimizerStarforceGains);
 optimizerFields.startStar.addEventListener("input", renderOptimizerStarforceGains);
 optimizerFields.targetStar.addEventListener("input", renderOptimizerStarforceGains);
+
+profileSortButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    const nextKey = button.dataset.profileSort;
+    profileSort = {
+      key: nextKey,
+      direction:
+        profileSort.key === nextKey && profileSort.direction === "desc" ? "asc" : "desc",
+    };
+    renderProfiles();
+  });
+});
 
 profileRows.addEventListener("click", (event) => {
   const button = event.target.closest("button");

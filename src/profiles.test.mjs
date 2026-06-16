@@ -391,7 +391,7 @@ test("loads recommended saved upgrades when no profile library exists", () => {
   assert.deepEqual(
     [
       "21★ → 22★ armor (250)",
-      "22★ → 23★ armor (160)",
+      "22★ → 23★ accessory (160, 10 spares)",
       "24★ → 25★ armor (250)",
       "Emblem: 33% → double-prime attack",
       "Weapon: 33% attack → 23/40",
@@ -402,6 +402,14 @@ test("loads recommended saved upgrades when no profile library exists", () => {
   );
   assert.ok(profiles.every((profile) => Number.isFinite(profile.p95Cost) && profile.p95Cost > 1));
   assert.ok(profiles.every((profile) => profile.source?.percentileCosts));
+  assert.equal(
+    profiles.filter((profile) => profile.type === "starforce").every((profile) => profile.source.spareCount === 10),
+    true,
+  );
+  assert.equal(
+    profiles.find((profile) => profile.name === "22★ → 23★ accessory (160, 10 spares)")?.source.itemType,
+    "accessory",
+  );
   assert.equal(
     profiles.find((profile) => profile.name === "Emblem: 33% → double-prime attack")?.source.target,
     "percAtt+36",
@@ -421,6 +429,40 @@ test("keeps an explicitly empty saved upgrade library empty", () => {
   storage.setItem("sfcalc.enhancementPlanner.profiles.v2", JSON.stringify([]));
 
   assert.deepEqual(loadProfiles(storage), []);
+});
+
+test("migrates the old 160 armor recommended row to 160 accessory with 10 spares", () => {
+  const storage = new MapStorage();
+  storage.setItem(
+    "sfcalc.enhancementPlanner.profiles.v2",
+    JSON.stringify([
+      {
+        id: "recommended-sf-22-23-armor-160",
+        name: "22★ → 23★ armor (160)",
+        type: "starforce",
+        statGains: {},
+        p50Cost: 1,
+        p75Cost: 1,
+        p95Cost: 1,
+        notes: "",
+        source: {
+          itemType: "armor",
+          itemLevel: 160,
+          startStar: 22,
+          targetStar: 23,
+          hitProbability: 0.85,
+          events: {},
+        },
+      },
+    ]),
+  );
+
+  const [profile] = loadProfiles(storage);
+
+  assert.equal(profile.id, "recommended-sf-22-23-accessory-160");
+  assert.equal(profile.name, "22★ → 23★ accessory (160, 10 spares)");
+  assert.equal(profile.source.itemType, "accessory");
+  assert.equal(profile.source.spareCount, 10);
 });
 
 test("saves and loads stat-equivalence rows and profiles", () => {

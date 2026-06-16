@@ -50,14 +50,15 @@ const DEFAULT_STARFORCE_EVENTS = Object.freeze({
 function createDefaultStarforceProfile({
   id,
   name,
+  itemType = "armor",
   itemLevel,
   startStar,
   targetStar,
-  spareCount,
+  spareCount = 10,
   notes = "",
 }) {
   const source = {
-    itemType: "armor",
+    itemType,
     itemLevel,
     startStar,
     targetStar,
@@ -129,8 +130,9 @@ export const DEFAULT_PROFILE_INPUTS = Object.freeze([
     notes: "Baseline full-SG 21 to 22 comparison.",
   }),
   createDefaultStarforceProfile({
-    id: "recommended-sf-22-23-armor-160",
-    name: "22★ → 23★ armor (160)",
+    id: "recommended-sf-22-23-accessory-160",
+    name: "22★ → 23★ accessory (160, 10 spares)",
+    itemType: "accessory",
     itemLevel: 160,
     startStar: 22,
     targetStar: 23,
@@ -214,8 +216,18 @@ export const DEFAULT_PROFILE_INPUTS = Object.freeze([
   }),
 ]);
 
+const DEFAULT_PROFILE_REPLACEMENTS = Object.freeze({
+  "recommended-sf-22-23-armor-160": "recommended-sf-22-23-accessory-160",
+});
+
+let recommendedProfilesCache = null;
+
 function validateDefaultStatEquivalenceInput() {
   return validateStatEquivalenceInput({ className: DEFAULT_STAT_EQUIVALENCE_CLASS });
+}
+
+function cloneProfile(profile) {
+  return JSON.parse(JSON.stringify(profile));
 }
 
 function getPresentedStatName(stat) {
@@ -651,7 +663,21 @@ export function refreshStarforceProfileCosts(profiles) {
 }
 
 function getDefaultProfiles() {
-  return refreshStarforceProfileCosts(DEFAULT_PROFILE_INPUTS);
+  recommendedProfilesCache ??= refreshStarforceProfileCosts(DEFAULT_PROFILE_INPUTS);
+  return recommendedProfilesCache.map(cloneProfile);
+}
+
+export function getRecommendedProfiles() {
+  return getDefaultProfiles();
+}
+
+function migrateProfileInput(profile) {
+  const replacementId = DEFAULT_PROFILE_REPLACEMENTS[profile?.id];
+  if (!replacementId) {
+    return profile;
+  }
+
+  return DEFAULT_PROFILE_INPUTS.find((candidate) => candidate.id === replacementId) ?? profile;
 }
 
 export function loadStatEquivalence(storage = getDefaultStorage()) {
@@ -717,7 +743,7 @@ export function loadProfiles(storage = getDefaultStorage()) {
 
   return parsed.flatMap((profile) => {
     try {
-      return [validateProfileInput(profile)];
+      return [validateProfileInput(migrateProfileInput(profile))];
     } catch {
       return [];
     }

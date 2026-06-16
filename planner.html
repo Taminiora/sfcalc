@@ -80,7 +80,7 @@
             </div>
             <label>
               <span>Name</span>
-              <input id="profile-name" required type="text" value="21 to 22 armor">
+              <input id="profile-name" type="text" value="21 to 22 armor">
             </label>
             <label class="short-select">
               <span>Upgrade type</span>
@@ -225,9 +225,14 @@
                 <h2>Saved upgrades</h2>
                 <p class="subtle-copy">Cost and strategy are computed from the saved target.</p>
               </div>
-              <button class="ghost-button danger-button" id="profile-clear-all" type="button">
-                Clear saved upgrades
-              </button>
+              <div class="section-actions">
+                <button class="ghost-button" id="profile-restore-recommended" type="button">
+                  Restore recommended
+                </button>
+                <button class="ghost-button danger-button" id="profile-clear-all" type="button">
+                  Clear saved upgrades
+                </button>
+              </div>
             </div>
             <div class="table-wrap">
               <table class="planner-table saved-upgrades-table">
@@ -235,10 +240,26 @@
                   <tr>
                     <th>Name</th>
                     <th>Strategy</th>
-                    <th>Expected</th>
-                    <th>FD</th>
-                    <th>85% odds</th>
-                    <th>FD/meso</th>
+                    <th aria-sort="none">
+                      <button class="sort-button" data-profile-sort="expected" type="button">
+                        Expected <span class="sort-indicator" aria-hidden="true"></span>
+                      </button>
+                    </th>
+                    <th aria-sort="none">
+                      <button class="sort-button" data-profile-sort="fdGain" type="button">
+                        FD <span class="sort-indicator" aria-hidden="true"></span>
+                      </button>
+                    </th>
+                    <th aria-sort="none">
+                      <button class="sort-button" data-profile-sort="targetOdds" type="button">
+                        85% odds <span class="sort-indicator" aria-hidden="true"></span>
+                      </button>
+                    </th>
+                    <th aria-sort="descending">
+                      <button class="sort-button" data-profile-sort="fdPerMesoP95" type="button">
+                        FD/1b meso <span class="sort-indicator" aria-hidden="true">▼</span>
+                      </button>
+                    </th>
                     <th>Actions</th>
                   </tr>
                 </thead>
@@ -348,11 +369,11 @@
                 <strong id="result-expected-booms">-</strong>
               </article>
               <article class="planner-metric">
-                <span>Recommendation FD/meso</span>
+                <span>Recommendation FD/1b meso</span>
                 <strong id="result-fd-per-meso">-</strong>
               </article>
               <article class="planner-metric">
-                <span>Benchmark FD/meso</span>
+                <span>Benchmark FD/1b meso</span>
                 <strong id="result-benchmark-fd-per-meso">-</strong>
               </article>
               <article class="planner-metric">

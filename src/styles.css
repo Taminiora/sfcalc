@@ -475,6 +475,7 @@ tr:last-child td {
 }
 
 .planner-grid {
+  align-items: start;
   display: grid;
   gap: 18px;
   grid-template-columns: 450px minmax(0, 1fr);
@@ -702,6 +703,19 @@ tr:last-child td {
   margin-bottom: 12px;
 }
 
+.section-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.section-actions .ghost-button {
+  min-height: 34px;
+  padding: 6px 10px;
+}
+
 .status-pill {
   border: 1px solid #cfd7e4;
   border-radius: 999px;
@@ -795,6 +809,32 @@ tr:last-child td {
 .saved-upgrades-table .strategy-cell {
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+.sort-button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-weight: inherit;
+  gap: 4px;
+  justify-content: flex-end;
+  padding: 0;
+  text-align: inherit;
+}
+
+.sort-button:hover {
+  color: #172033;
+}
+
+.sort-indicator {
+  display: inline-block;
+  font-size: 0.68rem;
+  line-height: 1;
+  min-width: 0.8em;
 }
 
 .saved-upgrades-table .table-actions {

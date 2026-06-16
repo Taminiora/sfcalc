@@ -92,6 +92,7 @@ test("planner save upgrade form supports star-force and cubing modes", () => {
   const cubing = readFileSync(new URL("./cubing.mjs", import.meta.url), "utf8");
 
   assert.equal(html.includes("profile-upgrade-type"), true);
+  assert.match(html, /id="profile-name"(?![^>]*required)/);
   assert.equal(html.includes("profile-cubing-fields"), true);
   assert.equal(html.includes("profile-cube-type"), true);
   assert.equal(html.includes("profile-cube-sale"), true);
@@ -125,6 +126,8 @@ test("planner save upgrade form supports star-force and cubing modes", () => {
   assert.equal(html.includes("profile-cubing-stat-gains"), true);
   assert.equal(script.includes("calculateCubingProfileCosts"), true);
   assert.equal(script.includes("getCubingStrategyOptions"), true);
+  assert.equal(script.includes("function getDefaultProfileName"), true);
+  assert.equal(script.includes("name: getProfileName({ isCubing, source })"), true);
   assert.equal(script.includes("const groupedOptions = new Map()"), true);
   assert.equal(script.includes("document.createElement(\"optgroup\")"), true);
   assert.equal(script.includes("cubeSale: profileFields.cubeSale.checked"), true);
@@ -206,6 +209,7 @@ test("planner cubing stat changes are open and named plainly", () => {
   assert.match(css, /\.cubing-config-panel\s*\{[\s\S]*?border: 1px solid #dbe1ea/s);
   assert.match(css, /\.planner-panel\s*\{[\s\S]*?max-width: 1280px/s);
   assert.match(css, /\.planner-grid\s*\{[\s\S]*?grid-template-columns: 450px minmax\(0, 1fr\)/s);
+  assert.match(css, /\.planner-grid\s*\{[^}]*align-items: start/s);
   assert.match(css, /\.cubing-target-grid\s*\{[\s\S]*?grid-template-columns: minmax\(120px, 0\.8fr\) minmax\(220px, 1\.4fr\)/s);
 });
 
@@ -255,8 +259,8 @@ test("planner saved upgrades show cost and strategy without p50/p75 controls", (
   assert.equal(html.includes("<th>p75</th>"), false);
   assert.equal(html.includes("benchmark-percentile"), false);
   assert.equal(html.includes("<th>Strategy</th>"), true);
-  assert.equal(html.includes("<th>Expected</th>"), true);
-  assert.equal(html.includes("<th>85% odds</th>"), true);
+  assert.equal(html.includes("Expected"), true);
+  assert.equal(html.includes("85% odds"), true);
   assert.equal(html.includes("<th>Spare count</th>"), false);
   assert.equal(html.includes("<th>Cost</th>"), false);
   assert.equal(html.includes("<th>p95 meso</th>"), false);
@@ -275,19 +279,49 @@ test("planner saved upgrades show cost and strategy without p50/p75 controls", (
   assert.match(css, /\.saved-upgrades-table th,[\s\S]*?\.saved-upgrades-table td\s*\{[\s\S]*?white-space: normal/s);
 });
 
+test("planner saved upgrades can sort by efficiency and costs", () => {
+  const html = readFileSync(new URL("../planner.html", import.meta.url), "utf8");
+  const script = readFileSync(new URL("./planner.mjs", import.meta.url), "utf8");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+
+  assert.equal(html.includes('data-profile-sort="expected"'), true);
+  assert.equal(html.includes('data-profile-sort="fdGain"'), true);
+  assert.equal(html.includes('data-profile-sort="targetOdds"'), true);
+  assert.equal(html.includes('data-profile-sort="fdPerMesoP95"'), true);
+  assert.equal(script.includes('const profileSortButtons = document.querySelectorAll("[data-profile-sort]")'), true);
+  assert.equal(script.includes('key: "fdPerMesoP95", direction: "desc"'), true);
+  assert.equal(script.includes("function getSortedProfileMetrics"), true);
+  assert.equal(script.includes("profileSortButtons.forEach"), true);
+  assert.equal(script.includes("aria-sort"), true);
+  assert.match(css, /\.sort-button\s*\{[\s\S]*?cursor: pointer/s);
+  assert.match(css, /\.sort-indicator\s*\{[\s\S]*?font-size: 0\.68rem/s);
+});
+
 test("planner can clear all saved upgrades with confirmation", () => {
   const html = readFileSync(new URL("../planner.html", import.meta.url), "utf8");
   const script = readFileSync(new URL("./planner.mjs", import.meta.url), "utf8");
 
   assert.equal(html.includes('id="profile-clear-all"'), true);
+  assert.equal(html.includes('id="profile-restore-recommended"'), true);
   assert.equal(html.includes("Clear saved upgrades"), true);
+  assert.equal(html.includes("Restore recommended"), true);
   assert.equal(script.includes('const profileClearAll = document.querySelector("#profile-clear-all")'), true);
+  assert.equal(
+    script.includes('const profileRestoreRecommended = document.querySelector("#profile-restore-recommended")'),
+    true,
+  );
   assert.equal(script.includes("profileClearAll.disabled = metrics.length === 0"), true);
   assert.equal(script.includes("window.confirm"), true);
   assert.equal(script.includes("Clear all saved upgrades?"), true);
+  assert.equal(script.includes("Replace saved upgrades with the recommended starter list?"), true);
+  assert.equal(script.includes("getRecommendedProfiles()"), true);
   assert.equal(script.includes("profiles = [];"), true);
   assert.equal(script.includes("saveProfiles(undefined, profiles);"), true);
   assert.equal(script.includes("setMessage(profileMessage, \"Cleared saved upgrades.\")"), true);
+  assert.equal(
+    script.includes("setMessage(profileMessage, \"Restored recommended saved upgrades.\")"),
+    true,
+  );
 });
 
 test("planner refreshes saved upgrade efficiency when manual stat values change", () => {
@@ -303,13 +337,15 @@ test("planner refreshes saved upgrade efficiency when manual stat values change"
   assert.equal(script.includes("renderOptimizer();"), true);
 });
 
-test("planner recommendation separates recommendation and benchmark FD per meso", () => {
+test("planner recommendation separates recommendation and benchmark FD per 1b meso", () => {
   const html = readFileSync(new URL("../planner.html", import.meta.url), "utf8");
   const script = readFileSync(new URL("./planner.mjs", import.meta.url), "utf8");
 
-  assert.equal(html.includes("<span>Recommendation FD/meso</span>"), true);
+  assert.equal(html.includes("FD/1b meso"), true);
+  assert.equal(html.includes("<th>FD/meso</th>"), false);
+  assert.equal(html.includes("<span>Recommendation FD/1b meso</span>"), true);
   assert.equal(html.includes('id="result-fd-per-meso"'), true);
-  assert.equal(html.includes("<span>Benchmark FD/meso</span>"), true);
+  assert.equal(html.includes("<span>Benchmark FD/1b meso</span>"), true);
   assert.equal(html.includes('id="result-benchmark-fd-per-meso"'), true);
   assert.equal(html.includes("<span>Benchmark status</span>"), true);
   assert.equal(html.includes('id="result-benchmark-status"'), true);
@@ -330,6 +366,9 @@ test("planner recommendation separates recommendation and benchmark FD per meso"
     ),
     true,
   );
+  assert.equal(script.includes("const FD_PER_BILLION_MESO = 1_000_000_000"), true);
+  assert.equal(script.includes("value * FD_PER_BILLION_MESO"), true);
+  assert.equal(script.includes("toFixed(5)"), true);
   assert.equal(
     script.includes('resultFields.benchmarkStatus.textContent = result.meetsBenchmark ? "Meets" : "Cannot compete"'),
     true,
