@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
+  DEFAULT_PROFILE_INPUTS,
   DEFAULT_STAT_EQUIVALENCE_CLASS,
   DEFAULT_STAT_ROWS,
   calculateFdGain,
@@ -381,6 +383,25 @@ test("refreshes stored cubing costs from source settings", () => {
   assert.equal(profile.source.percentileCosts.strategy, "lineAtt+3");
   assert.ok(profile.source.percentileCosts.p85Cubes > 0);
   assert.equal(profile.source.percentileCosts.p95Cost, profile.source.percentileCosts.p85Cost);
+});
+
+test("recommended saved upgrades ship with precomputed costs", () => {
+  assert.ok(DEFAULT_PROFILE_INPUTS.length >= 10);
+  assert.ok(DEFAULT_PROFILE_INPUTS.every((profile) => Number.isFinite(profile.p95Cost) && profile.p95Cost > 1));
+  assert.ok(DEFAULT_PROFILE_INPUTS.every((profile) => profile.source?.percentileCosts));
+  assert.equal(
+    DEFAULT_PROFILE_INPUTS.filter((profile) => profile.type === "starforce").every(
+      (profile) => Array.isArray(profile.source.percentileCosts.strategy),
+    ),
+    true,
+  );
+});
+
+test("planner launch does not recompute all saved profile costs", () => {
+  const script = readFileSync(new URL("./planner.mjs", import.meta.url), "utf8");
+
+  assert.equal(script.includes("let profiles = loadProfiles();"), true);
+  assert.equal(script.includes("refreshStarforceProfileCosts(loadProfiles())"), false);
 });
 
 test("loads recommended saved upgrades when no profile library exists", () => {

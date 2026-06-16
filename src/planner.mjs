@@ -17,7 +17,6 @@ import {
   loadProfiles,
   loadStatEquivalence,
   loadStatEquivalencePresets,
-  refreshStarforceProfileCosts,
   saveProfiles,
   saveStatEquivalence,
   saveStatEquivalencePresets,
@@ -74,6 +73,7 @@ const profileFields = {
   hitProbability: document.querySelector("#profile-hit-probability"),
   starCatch: document.querySelector("#profile-event-star-catch"),
   costReduction30: document.querySelector("#profile-event-cost-reduction"),
+  fullCostReduction30: document.querySelector("#profile-event-full-cost-reduction"),
   boomReduction30: document.querySelector("#profile-event-boom-reduction"),
   cubingItemType: document.querySelector("#profile-cubing-item-type"),
   cubingItemLevel: document.querySelector("#profile-cubing-item-level"),
@@ -92,6 +92,7 @@ const optimizerFields = {
   hitProbability: document.querySelector("#optimizer-hit-probability"),
   starCatch: document.querySelector("#event-star-catch"),
   costReduction30: document.querySelector("#event-cost-reduction"),
+  fullCostReduction30: document.querySelector("#event-full-cost-reduction"),
   boomReduction30: document.querySelector("#event-boom-reduction"),
 };
 
@@ -109,7 +110,7 @@ const resultFields = {
 
 const FD_PER_BILLION_MESO = 1_000_000_000;
 
-let profiles = refreshStarforceProfileCosts(loadProfiles());
+let profiles = loadProfiles();
 let statEquivalence = loadStatEquivalence();
 let statEquivalencePresets = loadStatEquivalencePresets();
 let profileSort = { key: "fdPerMesoP95", direction: "desc" };
@@ -274,6 +275,7 @@ function getProfileEvents() {
   return {
     starCatch: profileFields.starCatch.checked,
     costReduction30: profileFields.costReduction30.checked,
+    fullCostReduction30: profileFields.fullCostReduction30.checked,
     boomReduction30: profileFields.boomReduction30.checked,
   };
 }
@@ -282,6 +284,7 @@ function getOptimizerEvents() {
   return {
     starCatch: optimizerFields.starCatch.checked,
     costReduction30: optimizerFields.costReduction30.checked,
+    fullCostReduction30: optimizerFields.fullCostReduction30.checked,
     boomReduction30: optimizerFields.boomReduction30.checked,
   };
 }
@@ -766,6 +769,7 @@ function clearProfileForm() {
   profileFields.hitProbability.value = "85";
   profileFields.starCatch.checked = true;
   profileFields.costReduction30.checked = true;
+  profileFields.fullCostReduction30.checked = false;
   profileFields.boomReduction30.checked = true;
   profileFields.cubingItemType.value = "weapon";
   profileFields.cubingItemLevel.value = "250";
@@ -798,6 +802,7 @@ function fillProfileForm(profile) {
     : 85;
   profileFields.starCatch.checked = Boolean(profile.source?.events?.starCatch);
   profileFields.costReduction30.checked = Boolean(profile.source?.events?.costReduction30);
+  profileFields.fullCostReduction30.checked = Boolean(profile.source?.events?.fullCostReduction30);
   profileFields.boomReduction30.checked = Boolean(profile.source?.events?.boomReduction30);
   profileFields.cubingItemType.value = normalizeCubingItemTypeForForm(profile.source?.itemType ?? "weapon");
   profileFields.cubingItemLevel.value = profile.source?.itemLevel ?? 250;

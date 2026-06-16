@@ -7,6 +7,7 @@ import {
   findRequiredSpares,
   optimizeStarforce,
 } from "./plannerStarforce.mjs";
+import { getBaseCost } from "./starforce.mjs";
 import { formatStrategy } from "./strategyFormat.mjs";
 
 test("computes required spares as a probability guarantee", () => {
@@ -18,6 +19,28 @@ test("computes required spares as a probability guarantee", () => {
 
   assert.equal(calculateSpareProbability(distribution, 0), 0.7);
   assert.equal(findRequiredSpares(distribution, 0.9).requiredSpares, 1);
+});
+
+test("copium full cost reduction discounts mode surcharge and supersedes base reduction", () => {
+  const baseCost = getBaseCost(250, 15);
+  const result = optimizeStarforce({
+    itemLevel: 250,
+    startStar: 15,
+    targetStar: 16,
+    sfFdGain: 1,
+    benchmarkFdPerMeso: 0,
+    hitProbability: 0.85,
+    events: {
+      starCatch: false,
+      costReduction30: true,
+      fullCostReduction30: true,
+      boomReduction30: false,
+    },
+  });
+
+  assert.equal(formatStrategy(result.strategy), "4");
+  assert.equal(result.strategy[0].tapCost, 100 * Math.round((baseCost * 3 * 0.7) / 100));
+  assert.notEqual(result.strategy[0].tapCost, 100 * Math.round((baseCost * 2.7) / 100));
 });
 
 test("optimizes a 15 to 22 strategy against a benchmark", () => {
