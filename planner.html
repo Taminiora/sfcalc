@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Enhancement Planner</title>
-    <link rel="stylesheet" href="./src/styles.css">
+    <link rel="stylesheet" href="./src/styles.css?v=20260617-theme-toggle-control">
   </head>
   <body>
     <main class="app-shell planner-shell">
@@ -13,10 +13,17 @@
           <p class="eyebrow">Enhancement Planner</p>
           <h1>Upgrade efficiency</h1>
         </div>
-        <nav class="planner-tabs" aria-label="Planner tabs">
-          <button class="tab-button active" data-tab="library" type="button">Upgrade Library</button>
-          <button class="tab-button" data-tab="optimizer" type="button">SF Optimization</button>
-        </nav>
+        <div class="topbar-actions">
+          <nav class="planner-tabs" aria-label="Planner tabs">
+            <button class="tab-button active" data-tab="library" type="button">Upgrade Library</button>
+            <button class="tab-button" data-tab="optimizer" type="button">SF Optimization</button>
+          </nav>
+          <label class="theme-toggle" aria-label="Theme" for="theme-toggle">
+            <span class="theme-toggle-text theme-toggle-light">Light</span>
+            <input id="theme-toggle" role="switch" type="checkbox">
+            <span class="theme-toggle-text theme-toggle-dark">Dark</span>
+          </label>
+        </div>
       </section>
 
       <section class="planner-panel" data-panel="library">
@@ -425,6 +432,6 @@
       </section>
     </main>
 
-    <script type="module" src="./src/planner.mjs"></script>
+    <script type="module" src="./src/planner.mjs?v=20260617-theme-toggle"></script>
   </body>
 </html>

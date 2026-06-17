@@ -24,14 +24,34 @@ test("planner shell includes library and SF optimization tabs without 5/10/15", 
   assert.equal(html.includes("5/10/15"), false);
 });
 
-test("planner uses clean static asset URLs for production hosting", () => {
+test("planner uses stable static asset URLs for production hosting", () => {
   const html = readFileSync(new URL("../planner.html", import.meta.url), "utf8");
   const script = readFileSync(new URL("./planner.mjs", import.meta.url), "utf8");
 
-  assert.equal(html.includes('href="./src/styles.css"'), true);
-  assert.equal(html.includes('src="./src/planner.mjs"'), true);
-  assert.doesNotMatch(html, /\?(?:v|fresh|reload)=/);
-  assert.doesNotMatch(script, /from "\.\/[^"]+\?v=/);
+  assert.match(html, /href="\.\/src\/styles\.css\?v=\d{8}-[a-z0-9-]+"/);
+  assert.match(html, /src="\.\/src\/planner\.mjs\?v=\d{8}-[a-z0-9-]+"/);
+  assert.doesNotMatch(html, /\?(?:fresh|reload)=/);
+  assert.equal(script.includes('from "./cubing.mjs?v=20260617-cd-hat-options"'), true);
+  assert.equal(script.includes('from "./strategyFormat.mjs?v=20260617-strategy-display"'), true);
+  assert.doesNotMatch(script, /from "\.\/[^"]+\?(?:fresh|reload)=/);
+});
+
+test("planner supports a persisted dark mode toggle", () => {
+  const html = readFileSync(new URL("../planner.html", import.meta.url), "utf8");
+  const script = readFileSync(new URL("./planner.mjs", import.meta.url), "utf8");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+
+  assert.equal(html.includes('id="theme-toggle"'), true);
+  assert.equal(html.includes('role="switch"'), true);
+  assert.equal(html.includes("theme-toggle-light"), true);
+  assert.equal(html.includes("theme-toggle-dark"), true);
+  assert.equal(script.includes('THEME_STORAGE_KEY = "sfcalc.enhancementPlanner.theme.v1"'), true);
+  assert.equal(script.includes("document.documentElement.dataset.theme"), true);
+  assert.equal(script.includes("localStorage.setItem(THEME_STORAGE_KEY"), true);
+  assert.match(css, /html\[data-theme="dark"\]\s*\{/);
+  assert.match(css, /@media \(prefers-color-scheme: dark\)/);
+  assert.match(css, /\.theme-toggle\s*\{/);
+  assert.match(css, /\.theme-toggle:has\(input:checked\) \.theme-toggle-dark\s*\{/);
 });
 
 test("planner stat equivalence supports scouter FD paste and manual edits", () => {
@@ -238,7 +258,7 @@ test("planner save upgrade shows automatic star-force stat changes", () => {
   assert.equal(script.includes("profileFields.targetStar.addEventListener"), true);
   assert.equal(script.includes("statEquivalenceClass.addEventListener(\"change\""), true);
   assert.match(css, /\.stat-change-list\s*\{[\s\S]*?display: flex/s);
-  assert.match(css, /\.stat-change-chip\s*\{[\s\S]*?color: #1d4ed8/s);
+  assert.match(css, /\.stat-change-chip\s*\{[\s\S]*?color: var\(--accent-soft-text\)/s);
   assert.match(css, /\.stat-change-chip\s*\{[\s\S]*?font-size: 0\.78rem/s);
   assert.match(css, /\.stat-change-chip\s*\{[\s\S]*?font-weight: 900/s);
 });

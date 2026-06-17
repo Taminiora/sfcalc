@@ -1,7 +1,7 @@
 import {
   calculateCubingProfileCosts,
   getCubingStrategyOptions,
-} from "./cubing.mjs";
+} from "./cubing.mjs?v=20260617-cd-hat-options";
 import {
   CLASS_NAMES,
   parseScouterFinalDamageTable,
@@ -25,10 +25,11 @@ import {
   validateStatEquivalencePresetInput,
 } from "./profiles.mjs";
 import { calculateStarforceProfileCosts, optimizeStarforce } from "./plannerStarforce.mjs";
-import { formatStrategy } from "./strategyFormat.mjs";
+import { formatStrategy } from "./strategyFormat.mjs?v=20260617-strategy-display";
 
 const tabs = document.querySelectorAll("[data-tab]");
 const panels = document.querySelectorAll("[data-panel]");
+const themeToggle = document.querySelector("#theme-toggle");
 const statEquivalenceForm = document.querySelector("#stat-equivalence-form");
 const statEquivalenceClass = document.querySelector("#stat-equivalence-class");
 const statEquivalencePaste = document.querySelector("#stat-equivalence-paste");
@@ -109,6 +110,7 @@ const resultFields = {
 };
 
 const FD_PER_BILLION_MESO = 1_000_000_000;
+const THEME_STORAGE_KEY = "sfcalc.enhancementPlanner.theme.v1";
 
 let profiles = loadProfiles();
 let statEquivalence = loadStatEquivalence();
@@ -117,6 +119,48 @@ let profileSort = { key: "fdPerMesoP95", direction: "desc" };
 saveProfiles(undefined, profiles);
 saveStatEquivalence(undefined, statEquivalence);
 saveStatEquivalencePresets(undefined, statEquivalencePresets);
+initializeTheme();
+
+function getStoredTheme() {
+  try {
+    return localStorage.getItem(THEME_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function getPreferredTheme() {
+  const storedTheme = getStoredTheme();
+  if (storedTheme === "dark" || storedTheme === "light") {
+    return storedTheme;
+  }
+
+  return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function setTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  if (themeToggle) {
+    themeToggle.checked = theme === "dark";
+  }
+}
+
+function saveTheme(theme) {
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, theme);
+  } catch {
+    // Theme still applies for the current page when storage is unavailable.
+  }
+}
+
+function initializeTheme() {
+  setTheme(getPreferredTheme());
+  themeToggle?.addEventListener("change", () => {
+    const theme = themeToggle.checked ? "dark" : "light";
+    setTheme(theme);
+    saveTheme(theme);
+  });
+}
 
 function formatInteger(value) {
   return Math.round(value).toLocaleString("en-US");
