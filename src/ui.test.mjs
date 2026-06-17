@@ -277,6 +277,7 @@ test("planner saved upgrades show cost and strategy without p50/p75 controls", (
   assert.equal(script.includes("${formatInteger(requiredSpares)} spares"), true);
   assert.equal(script.includes("Saved. Strategy:"), true);
   assert.equal(script.includes("source?.percentileCosts?.strategy"), true);
+  assert.equal(script.includes("showBaseSuffix: false"), true);
   assert.equal(script.includes("formatSavedSpareCount(profile)"), false);
   assert.equal(script.includes("spareCount: Number(profileFields.spareCount.value)"), true);
   assert.equal(script.includes("spareCount: Number(optimizerFields.spareCount.value)"), false);

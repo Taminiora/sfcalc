@@ -279,7 +279,9 @@ const CUBING_STRATEGY_GROUPS = Object.freeze({
       label: "Cooldown",
       options: [
         { label: "-2s Cooldown", value: "secCooldown+2" },
+        { label: "-2s Cooldown + 2L stat", value: "secCooldown+2&lineStat+2" },
         { label: "-3s Cooldown", value: "secCooldown+3" },
+        { label: "-3s Cooldown + stat", value: "secCooldown+3&lineStat+1" },
         { label: "-4s Cooldown", value: "secCooldown+4" },
         { label: "-5s Cooldown", value: "secCooldown+5" },
         { label: "-6s Cooldown", value: "secCooldown+6" },

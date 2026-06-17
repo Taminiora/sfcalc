@@ -35,3 +35,40 @@ test("formats partial and base-only strategies", () => {
     "BB",
   );
 });
+
+test("can hide trailing base-only high-star taps for compact table display", () => {
+  assert.equal(
+    formatStrategy(
+      [
+        { star: 15, mode: "1" },
+        { star: 16, mode: "1" },
+        { star: 17, mode: "1" },
+        { star: 18, mode: "1" },
+        { star: 19, mode: "1" },
+        { star: 20, mode: "1" },
+        { star: 21, mode: "1" },
+        { star: 22, mode: "Base" },
+        { star: 23, mode: "Base" },
+      ],
+      { showBaseSuffix: false },
+    ),
+    "111/11/11",
+  );
+
+  assert.equal(
+    formatStrategy(
+      [
+        { star: 15, mode: "1" },
+        { star: 16, mode: "1" },
+        { star: 17, mode: "1" },
+        { star: 18, mode: "1" },
+        { star: 19, mode: "1" },
+        { star: 20, mode: "1" },
+        { star: 21, mode: "1" },
+        { star: 22, mode: "B" },
+      ],
+      { showBaseSuffix: false },
+    ),
+    "111/11/11",
+  );
+});

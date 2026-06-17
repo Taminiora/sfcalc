@@ -536,7 +536,9 @@ function formatSavedStrategy(profile) {
     return profile.source?.targetLabel ?? profile.source?.percentileCosts?.strategy ?? profile.source?.target ?? "-";
   }
 
-  return formatStrategy(profile.source?.percentileCosts?.strategy ?? []) || "-";
+  return formatStrategy(profile.source?.percentileCosts?.strategy ?? [], {
+    showBaseSuffix: false,
+  }) || "-";
 }
 
 function formatSavedExpected(profile) {

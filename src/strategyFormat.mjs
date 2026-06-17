@@ -4,8 +4,12 @@ const STAR_GROUPS = Object.freeze([
   [20, 21],
 ]);
 
+function isBaseMode(mode) {
+  return mode === "Base" || mode === "B";
+}
+
 function formatMode(mode) {
-  return mode === "Base" ? "B" : String(mode);
+  return isBaseMode(mode) ? "B" : String(mode);
 }
 
 function formatGroup(rows, stars) {
@@ -18,12 +22,13 @@ function formatGroup(rows, stars) {
   return matchingRows.map((row) => formatMode(row.mode)).join("");
 }
 
-export function formatStrategy(strategy = []) {
+export function formatStrategy(strategy = [], { showBaseSuffix = true } = {}) {
   const rows = [...strategy].sort((left, right) => left.star - right.star);
   const groupedStars = new Set(STAR_GROUPS.flat());
   const groupedParts = STAR_GROUPS.map((stars) => formatGroup(rows, stars)).filter(Boolean);
   const extraParts = rows
     .filter((row) => !groupedStars.has(row.star))
+    .filter((row) => showBaseSuffix || !isBaseMode(row.mode))
     .map((row) => formatMode(row.mode));
 
   return [...groupedParts, extraParts.join("")].filter(Boolean).join("/");

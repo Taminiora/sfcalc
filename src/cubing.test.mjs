@@ -27,6 +27,16 @@ test("exposes endgame cubing strategy options by item type", () => {
 
   assert.ok(weaponOptions.some((option) => option.value === "percAtt+39"));
   assert.ok(hatOptions.some((option) => option.value === "secCooldown+4"));
+  assert.ok(
+    hatOptions.some(
+      (option) => option.label === "-2s Cooldown + 2L stat" && option.value === "secCooldown+2&lineStat+2",
+    ),
+  );
+  assert.ok(
+    hatOptions.some(
+      (option) => option.label === "-3s Cooldown + stat" && option.value === "secCooldown+3&lineStat+1",
+    ),
+  );
   assert.equal(topGroups.some((group) => group.label === "Prime lines"), false);
   assert.ok(topGroups.some((group) => group.label === "Stat thresholds"));
 });
