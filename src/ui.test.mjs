@@ -88,8 +88,8 @@ test("planner stat equivalence supports scouter FD paste and manual edits", () =
 test("planner stat equivalence card is compact and collapsible", () => {
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
 
-  assert.match(css, /\.stat-equivalence-card\s*\{[\s\S]*?max-width: 760px/s);
-  assert.match(css, /\.stat-equivalence-card\s*\{[\s\S]*?width: min\(100%, 760px\)/s);
+  assert.match(css, /\.stat-equivalence-card\s*\{[\s\S]*?max-width: none/s);
+  assert.match(css, /\.stat-equivalence-card\s*\{[\s\S]*?width: 100%/s);
   assert.match(css, /\.stat-equivalence-summary\s*\{[\s\S]*?cursor: pointer/s);
   assert.match(css, /\.stat-equivalence-summary\s*\{[\s\S]*?padding-right: 34px/s);
   assert.match(css, /\.stat-equivalence-summary\s*\{[\s\S]*?position: relative/s);
@@ -235,7 +235,10 @@ test("planner cubing stat changes are open and named plainly", () => {
   assert.equal(html.includes("profile-cubing-stat-gains"), true);
   assert.match(css, /\.cubing-config-panel\s*\{[\s\S]*?border: 1px solid #dbe1ea/s);
   assert.match(css, /\.planner-panel\s*\{[\s\S]*?max-width: 1280px/s);
-  assert.match(css, /\.planner-grid\s*\{[\s\S]*?grid-template-columns: 450px minmax\(0, 1fr\)/s);
+  assert.match(
+    css,
+    /\.planner-grid\s*\{[\s\S]*?grid-template-columns: minmax\(360px, 400px\) minmax\(760px, 1fr\)/s,
+  );
   assert.match(css, /\.planner-grid\s*\{[^}]*align-items: start/s);
   assert.match(css, /\.cubing-target-grid\s*\{[\s\S]*?grid-template-columns: minmax\(120px, 0\.8fr\) minmax\(220px, 1\.4fr\)/s);
 });

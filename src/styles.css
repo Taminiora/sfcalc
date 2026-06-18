@@ -653,7 +653,7 @@ tr:last-child td {
   align-items: start;
   display: grid;
   gap: 18px;
-  grid-template-columns: 450px minmax(0, 1fr);
+  grid-template-columns: minmax(360px, 400px) minmax(760px, 1fr);
 }
 
 .optimizer-grid {
@@ -686,8 +686,8 @@ tr:last-child td {
 
 .stat-equivalence-card {
   margin-bottom: 18px;
-  max-width: 760px;
-  width: min(100%, 760px);
+  max-width: none;
+  width: 100%;
 }
 
 .stat-equivalence-summary {
@@ -1329,10 +1329,9 @@ html[data-theme="dark"] .cubing-config-panel {
   overflow-wrap: anywhere;
 }
 
-@media (max-width: 1040px) {
+@media (max-width: 1180px) {
   .planner-grid,
-  .optimizer-grid,
-  .stat-equivalence-card {
+  .optimizer-grid {
     grid-template-columns: 1fr;
   }
 
