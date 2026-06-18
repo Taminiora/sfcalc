@@ -100,6 +100,7 @@ const BASE_STAT_LABELS = Object.freeze({
 });
 
 const ROLE_LABELS = Object.freeze(["Main Stat", "Secondary Stat", "Tertiary Stat"]);
+const RAW_LABEL_STAT_TYPES = new Set(["hp", "xenon"]);
 
 export function normalizeClassName(value) {
   return String(value ?? "").trim().toLowerCase();
@@ -150,10 +151,52 @@ function getRoleByRawStat(statType) {
   return new Map(rawStats.map((rawStat, index) => [rawStat, ROLE_LABELS[index] ?? `${rawStat} Stat`]));
 }
 
+function getRawStatsForStatType(statType) {
+  const statRoles = STAT_TYPES[statType];
+  return statRoles ? [...statRoles.main, ...statRoles.secondary] : [];
+}
+
+function usesRawStatLabels(statType) {
+  return RAW_LABEL_STAT_TYPES.has(statType);
+}
+
+export function getClassStatLabels(className) {
+  const statType = CLASS_STATS[normalizeClassName(className)];
+  if (!statType) {
+    return [];
+  }
+
+  const rawStats = getRawStatsForStatType(statType);
+  return usesRawStatLabels(statType)
+    ? rawStats
+    : ROLE_LABELS.slice(0, rawStats.length);
+}
+
+function getRawStatByRole(statType) {
+  const rawStats = getRawStatsForStatType(statType);
+  return new Map(rawStats.map((rawStat, index) => [ROLE_LABELS[index], rawStat]));
+}
+
 function normalizeLabelForStatType(label, statType) {
   const baseLabel = BASE_STAT_LABELS[label];
   if (baseLabel) {
     return baseLabel;
+  }
+
+  if (usesRawStatLabels(statType)) {
+    const rawStatByRole = getRawStatByRole(statType);
+    for (const [role, rawStat] of rawStatByRole.entries()) {
+      if (label === role) {
+        return rawStat;
+      }
+      if (label === `${role}%`) {
+        return `${rawStat}%`;
+      }
+      if (label === `Not Affected by % ${role}`) {
+        return `Not Affected by % ${rawStat}`;
+      }
+    }
+    return label;
   }
 
   const roleByRawStat = getRoleByRawStat(statType);

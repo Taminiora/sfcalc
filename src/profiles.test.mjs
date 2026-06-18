@@ -51,6 +51,33 @@ test("derives FD gain from stat-equivalence rows and stat gains", () => {
   assert.equal(fdGain, 3.1);
 });
 
+test("derives FD gain from class-specific raw stat changes for Xenon and Demon Avenger", () => {
+  const xenonEquivalence = validateStatEquivalenceInput({
+    className: "xenon",
+    rows: [
+      { stat: "STR", value: 30, finalDamagePercent: 0.118 },
+      { stat: "DEX", value: 30, finalDamagePercent: 0.118 },
+      { stat: "LUK", value: 30, finalDamagePercent: 0.118 },
+    ],
+  });
+  const demonAvengerEquivalence = validateStatEquivalenceInput({
+    className: "demon_avenger",
+    rows: [
+      { stat: "HP", value: 30, finalDamagePercent: 0.012 },
+      { stat: "STR", value: 30, finalDamagePercent: 0.004 },
+    ],
+  });
+
+  assert.equal(
+    Number(calculateFdGain({ STR: 30, DEX: 30, LUK: 30 }, xenonEquivalence).toFixed(6)),
+    0.354,
+  );
+  assert.equal(
+    Number(calculateFdGain({ HP: 30, STR: 30 }, demonAvengerEquivalence).toFixed(6)),
+    0.016,
+  );
+});
+
 test("derives FD loss from negative stat changes", () => {
   const statEquivalence = validateStatEquivalenceInput({
     rows: [
@@ -251,6 +278,31 @@ test("expands class stat gains for star-force previews", () => {
       "Tertiary Stat": 119,
     },
   );
+
+  assert.deepEqual(
+    expandClassStatGains(
+      { Attack: 120, "Class Stat": 119 },
+      validateStatEquivalenceInput({ className: "xenon" }),
+    ),
+    {
+      Attack: 120,
+      STR: 119,
+      DEX: 119,
+      LUK: 119,
+    },
+  );
+
+  assert.deepEqual(
+    expandClassStatGains(
+      { Attack: 120, "Class Stat": 119 },
+      validateStatEquivalenceInput({ className: "demon_avenger" }),
+    ),
+    {
+      Attack: 120,
+      HP: 119,
+      STR: 119,
+    },
+  );
 });
 
 test("presents DEX and STR stat rows as generic main and secondary stat labels", () => {
@@ -317,7 +369,7 @@ test("stat-equivalence storage keeps class metadata and drops stale image previe
 
   assert.deepEqual(statEquivalence, {
     className: "demon_avenger",
-    rows: [{ stat: "Main Stat", value: 30, finalDamagePercent: 0.012 }],
+    rows: [{ stat: "HP", value: 30, finalDamagePercent: 0.012 }],
   });
 });
 

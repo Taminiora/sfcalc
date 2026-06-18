@@ -3,7 +3,7 @@ import { calculateStarforceProfileCosts } from "./plannerStarforce.mjs";
 import { calculateStarforceStatGains, CLASS_STAT } from "./starforceStats.mjs";
 import {
   CLASS_STATS,
-  STAT_TYPES,
+  getClassStatLabels,
   normalizeClassName,
   normalizeScouterStatLabel,
 } from "./statEquivalenceParser.mjs";
@@ -20,8 +20,6 @@ const PRESENTED_STAT_RENAMES = Object.freeze({
   "STR%": "Secondary Stat%",
   "Not Affected by % STR": "Not Affected by % Secondary Stat",
 });
-
-const CLASS_STAT_ROLE_LABELS = Object.freeze(["Main Stat", "Secondary Stat", "Tertiary Stat"]);
 
 export const DEFAULT_STAT_EQUIVALENCE_CLASS = "wind_archer";
 
@@ -624,10 +622,19 @@ function validateStatRow(input, className) {
   };
 }
 
-function validateStatGains(input = {}) {
+function getPresentedStatGainName(rawStat, className = "") {
+  const stat = String(rawStat).trim();
+  if (!className) {
+    return getPresentedStatName(stat);
+  }
+
+  return normalizeScouterStatLabel(stat, className);
+}
+
+function validateStatGains(input = {}, className = "") {
   const validated = {};
   for (const [rawStat, rawValue] of Object.entries(input)) {
-    const stat = getPresentedStatName(String(rawStat).trim());
+    const stat = getPresentedStatGainName(rawStat, className);
     const value = parseSignedNumber(rawValue, `${stat} change`);
     if (stat && value !== 0) {
       validated[stat] = (validated[stat] ?? 0) + value;
@@ -672,30 +679,20 @@ function getClassStatAlias(fdPerUnitByStat) {
 }
 
 function getClassStatRoleKeys(statEquivalence, fdPerUnitByStat, classStatAlias) {
-  const statType = CLASS_STATS[normalizeClassName(statEquivalence.className)];
-  const statRoles = statType ? STAT_TYPES[statType] : null;
-  if (statRoles) {
-    const roleCount = statRoles.main.length + statRoles.secondary.length;
-    const roleKeys = CLASS_STAT_ROLE_LABELS.slice(0, roleCount).filter((role) =>
-      fdPerUnitByStat.has(role),
-    );
-    if (roleKeys.length > 0) {
-      return roleKeys;
-    }
+  const classStatKeys = getClassStatLabels(statEquivalence.className).filter((stat) =>
+    fdPerUnitByStat.has(stat),
+  );
+  if (classStatKeys.length > 0) {
+    return classStatKeys;
   }
 
   return [classStatAlias ?? CLASS_STAT];
 }
 
 function getClassStatDisplayKeys(statEquivalence) {
-  const statType = CLASS_STATS[normalizeClassName(statEquivalence.className)];
-  const statRoles = statType ? STAT_TYPES[statType] : null;
-  if (!statRoles) {
-    return [CLASS_STAT];
-  }
-
-  const roleCount = statRoles.main.length + statRoles.secondary.length;
-  return CLASS_STAT_ROLE_LABELS.slice(0, roleCount);
+  return getClassStatLabels(statEquivalence.className).length > 0
+    ? getClassStatLabels(statEquivalence.className)
+    : [CLASS_STAT];
 }
 
 function getValuedStatKeys(stat, statEquivalence, fdPerUnitByStat, classStatAlias) {
@@ -791,7 +788,7 @@ export function validateStatEquivalencePresetInput(input) {
 }
 
 export function calculateFdGain(statGains, statEquivalence) {
-  const validStatGains = validateStatGains(statGains);
+  const validStatGains = validateStatGains(statGains, statEquivalence.className);
   const fdPerUnitByStat = getFdPerUnitByStat(statEquivalence);
   const classStatAlias = getClassStatAlias(fdPerUnitByStat);
 
@@ -806,7 +803,7 @@ export function calculateFdGain(statGains, statEquivalence) {
 
 export function expandClassStatGains(statGains, statEquivalence) {
   const expanded = {};
-  for (const [stat, value] of Object.entries(validateStatGains(statGains))) {
+  for (const [stat, value] of Object.entries(validateStatGains(statGains, statEquivalence.className))) {
     const displayStats = stat === CLASS_STAT
       ? getClassStatDisplayKeys(statEquivalence)
       : [stat];
@@ -822,7 +819,7 @@ export function calculateStarforceFdBreakdown(input, statEquivalence) {
   const automaticGains = hasStarforceStatSource(source)
     ? calculateStarforceStatGains(source)
     : {};
-  const manualGains = validateStatGains(input.statGains);
+  const manualGains = validateStatGains(input.statGains, statEquivalence.className);
   const fdPerUnitByStat = getFdPerUnitByStat(statEquivalence);
   const classStatAlias = getClassStatAlias(fdPerUnitByStat);
   const rowsByStat = new Map();

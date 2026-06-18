@@ -60,7 +60,7 @@ test("exports sorted Maple class names for the parser UI", () => {
   assert.deepEqual(CLASS_NAMES, [...CLASS_NAMES].sort());
 });
 
-test("parses Demon Avenger FD scouter rows into generic planner stat rows", () => {
+test("parses Demon Avenger FD scouter rows into HP and STR stat rows", () => {
   const result = parseScouterFinalDamageTable(DEMON_AVENGER_FD, "demon_avenger");
 
   assert.equal(result.className, "demon_avenger");
@@ -73,17 +73,17 @@ test("parses Demon Avenger FD scouter rows into generic planner stat rows", () =
     { stat: "Critical Dmg", value: 8, finalDamagePercent: 2.578 },
     { stat: "Ignore Dff(300)", value: 40, finalDamagePercent: 0.428 },
     { stat: "Ignore Dff(380)", value: 40, finalDamagePercent: 0.543 },
-    { stat: "Main Stat", value: 30, finalDamagePercent: 0.012 },
-    { stat: "Main Stat%", value: 12, finalDamagePercent: 0.731 },
-    { stat: "Not Affected by % Main Stat", value: 200, finalDamagePercent: 0.006 },
-    { stat: "Secondary Stat", value: 30, finalDamagePercent: 0.004 },
-    { stat: "Secondary Stat%", value: 12, finalDamagePercent: 0.078 },
-    { stat: "Not Affected by % Secondary Stat", value: 200, finalDamagePercent: 0.026 },
+    { stat: "HP", value: 30, finalDamagePercent: 0.012 },
+    { stat: "HP%", value: 12, finalDamagePercent: 0.731 },
+    { stat: "Not Affected by % HP", value: 200, finalDamagePercent: 0.006 },
+    { stat: "STR", value: 30, finalDamagePercent: 0.004 },
+    { stat: "STR%", value: 12, finalDamagePercent: 0.078 },
+    { stat: "Not Affected by % STR", value: 200, finalDamagePercent: 0.026 },
     { stat: "All Stat%", value: 9, finalDamagePercent: 0.059 },
   ]);
 });
 
-test("preserves Xenon three-stat FD rows as main, secondary, and tertiary stats", () => {
+test("preserves Xenon three-stat FD rows as STR, DEX, and LUK stats", () => {
   const result = parseScouterFinalDamageTable(XENON_FD, "xenon");
 
   assert.deepEqual(
@@ -95,15 +95,15 @@ test("preserves Xenon three-stat FD rows as main, secondary, and tertiary stats"
       "Critical Dmg",
       "Ignore Dff(300)",
       "Ignore Dff(380)",
-      "Main Stat",
-      "Main Stat%",
-      "Not Affected by % Main Stat",
-      "Secondary Stat",
-      "Secondary Stat%",
-      "Not Affected by % Secondary Stat",
-      "Tertiary Stat",
-      "Tertiary Stat%",
-      "Not Affected by % Tertiary Stat",
+      "STR",
+      "STR%",
+      "Not Affected by % STR",
+      "DEX",
+      "DEX%",
+      "Not Affected by % DEX",
+      "LUK",
+      "LUK%",
+      "Not Affected by % LUK",
       "All Stat%",
     ],
   );
