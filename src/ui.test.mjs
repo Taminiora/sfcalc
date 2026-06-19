@@ -61,8 +61,9 @@ test("planner stat equivalence supports scouter FD paste and manual edits", () =
   assert.equal(html.includes("Scouter FD paste"), true);
   assert.equal(html.includes('<details class="planner-card stat-equivalence-card" open>'), true);
   assert.equal(html.includes('class="stat-equivalence-summary"'), true);
-  assert.equal(html.includes("get your numbers here"), true);
-  assert.equal(html.includes('href="https://satsivi.github.io/maple_data_parser/"'), true);
+  assert.equal(html.includes("Paste Scouter Final Damage% rows directly."), true);
+  assert.equal(html.includes("get your numbers here"), false);
+  assert.equal(html.includes('href="https://satsivi.github.io/maple_data_parser/"'), false);
   assert.equal(html.includes("stat-equivalence-class"), true);
   assert.equal(html.includes("stat-equivalence-paste"), true);
   assert.equal(html.includes("Parse Scouter paste"), true);
