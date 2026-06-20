@@ -54,6 +54,21 @@ DEX%\t12\t15.81
 Not Affected by % DEX\t200\t4.70
 All Stat%\t9\t104.48`;
 
+const PHANTOM_FD_WITH_SPACES = `항목    Value    Final Damage%
+Boss Damage    40    3.394%
+Attack    30    0.611%
+Attack%    12    5.233%
+Critical Dmg    8    2.369%
+Ignore Dff(300)    40    0.614%
+Ignore Dff(380)    40    0.781%
+LUK    30    0.232%
+LUK%    12    1.037%
+Not Affected by % LUK    200    0.201%
+DEX    30    0.019%
+DEX%    12    0.141%
+Not Affected by % DEX    200    0.050%
+All Stat%    9    0.883%`;
+
 test("exports sorted Maple class names for the parser UI", () => {
   assert.equal(CLASS_NAMES.includes("demon_avenger"), true);
   assert.equal(CLASS_NAMES.includes("night_lord"), true);
@@ -107,6 +122,21 @@ test("preserves Xenon three-stat FD rows as STR, DEX, and LUK stats", () => {
       "All Stat%",
     ],
   );
+});
+
+test("parses Scouter FD rows copied with multiple spaces between columns", () => {
+  const result = parseScouterFinalDamageTable(PHANTOM_FD_WITH_SPACES, "phantom");
+
+  assert.equal(result.className, "phantom");
+  assert.equal(result.statType, "luk");
+  assert.deepEqual(result.rows.slice(6, 12), [
+    { stat: "Main Stat", value: 30, finalDamagePercent: 0.232 },
+    { stat: "Main Stat%", value: 12, finalDamagePercent: 1.037 },
+    { stat: "Not Affected by % Main Stat", value: 200, finalDamagePercent: 0.201 },
+    { stat: "Secondary Stat", value: 30, finalDamagePercent: 0.019 },
+    { stat: "Secondary Stat%", value: 12, finalDamagePercent: 0.141 },
+    { stat: "Not Affected by % Secondary Stat", value: 200, finalDamagePercent: 0.05 },
+  ]);
 });
 
 test("rejects Main Stat scouter rows until planner supports non-FD units", () => {

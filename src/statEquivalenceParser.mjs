@@ -114,9 +114,16 @@ function parseNumber(value, label) {
   return number;
 }
 
+function splitScouterColumns(line) {
+  return String(line ?? "")
+    .trim()
+    .split(/\t+| {2,}/)
+    .map((part) => part.trim());
+}
+
 function detectEquivalenceType(lines) {
   for (const line of lines) {
-    const parts = line.split("\t");
+    const parts = splitScouterColumns(line);
     if (parts.length < 3) {
       continue;
     }
@@ -141,7 +148,7 @@ function detectEquivalenceType(lines) {
 
 function getDataLines(lines) {
   return lines.filter((line) => {
-    const firstColumn = line.split("\t")[0]?.trim().toLowerCase();
+    const firstColumn = splitScouterColumns(line)[0]?.trim().toLowerCase();
     return firstColumn !== "항목" && firstColumn !== "stat";
   });
 }
@@ -229,7 +236,7 @@ export function normalizeScouterStatLabel(label, className) {
 
 function extractTableStats(dataLines) {
   return dataLines
-    .map((line) => line.split("\t")[0]?.trim())
+    .map((line) => splitScouterColumns(line)[0]?.trim())
     .filter((label) => RAW_STAT_ABBRS.includes(label));
 }
 
@@ -279,7 +286,7 @@ export function parseScouterFinalDamageTable(rawText, rawClassName) {
     statType,
     equivalenceType,
     rows: dataLines.map((line) => {
-      const parts = line.split("\t");
+      const parts = splitScouterColumns(line);
       if (parts.length < 3) {
         throw new Error(`Could not parse row: "${line}"`);
       }
