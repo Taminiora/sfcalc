@@ -720,6 +720,19 @@ function getClassStatDisplayKeys(statEquivalence) {
     : [CLASS_STAT];
 }
 
+function getStatDisplayLabel(stat, statEquivalence) {
+  const statType = CLASS_STATS[normalizeClassName(statEquivalence.className)];
+  if (statType === "int") {
+    if (stat === "Attack") {
+      return "M.Attack";
+    }
+    if (stat === "Attack%") {
+      return "M.Attack%";
+    }
+  }
+  return stat;
+}
+
 function getValuedStatKeys(stat, statEquivalence, fdPerUnitByStat, classStatAlias) {
   return stat === CLASS_STAT && !fdPerUnitByStat.has(CLASS_STAT)
     ? getClassStatRoleKeys(statEquivalence, fdPerUnitByStat, classStatAlias)
@@ -745,9 +758,10 @@ function addBreakdownValue(
     fdPerUnitByStat,
     classStatAlias,
   )) {
+    const displayLabel = getStatDisplayLabel(valuedStat, statEquivalence);
     const row = rowsByStat.get(valuedStat) ?? {
       stat: valuedStat,
-      label: valuedStat,
+      label: displayLabel,
       automatic: 0,
       manual: 0,
       net: 0,
@@ -756,7 +770,7 @@ function addBreakdownValue(
     };
     row[field] += value;
     row.usesClassStatAlias ||= stat === CLASS_STAT && valuedStat !== stat;
-    row.label = row.usesClassStatAlias ? `${valuedStat} (Class Stat)` : valuedStat;
+    row.label = row.usesClassStatAlias ? `${displayLabel} (Class Stat)` : displayLabel;
     rowsByStat.set(valuedStat, row);
   }
 }
@@ -831,7 +845,7 @@ export function expandClassStatGains(statGains, statEquivalence) {
   for (const [stat, value] of Object.entries(validateStatGains(statGains, statEquivalence.className))) {
     const displayStats = stat === CLASS_STAT
       ? getClassStatDisplayKeys(statEquivalence)
-      : [stat];
+      : [getStatDisplayLabel(stat, statEquivalence)];
     for (const displayStat of displayStats) {
       expanded[displayStat] = (expanded[displayStat] ?? 0) + value;
     }

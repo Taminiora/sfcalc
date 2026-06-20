@@ -69,6 +69,21 @@ DEX%    12    0.141%
 Not Affected by % DEX    200    0.050%
 All Stat%    9    0.883%`;
 
+const BISHOP_FD_WITH_MAGIC_ATTACK = `항목    Value    Final Damage%
+Boss Damage    40    3.394%
+M.Attack    30    0.611%
+M.Attack%    12    5.233%
+Critical Dmg    8    2.369%
+Ignore Dff(300)    40    0.614%
+Ignore Dff(380)    40    0.781%
+INT    30    0.232%
+INT%    12    1.037%
+Not Affected by % INT    200    0.201%
+LUK    30    0.019%
+LUK%    12    0.141%
+Not Affected by % LUK    200    0.050%
+All Stat%    9    0.883%`;
+
 test("exports sorted Maple class names for the parser UI", () => {
   assert.equal(CLASS_NAMES.includes("demon_avenger"), true);
   assert.equal(CLASS_NAMES.includes("night_lord"), true);
@@ -136,6 +151,17 @@ test("parses Scouter FD rows copied with multiple spaces between columns", () =>
     { stat: "Secondary Stat", value: 30, finalDamagePercent: 0.019 },
     { stat: "Secondary Stat%", value: 12, finalDamagePercent: 0.141 },
     { stat: "Not Affected by % Secondary Stat", value: 200, finalDamagePercent: 0.05 },
+  ]);
+});
+
+test("normalizes Bishop magic attack rows to generic attack rows", () => {
+  const result = parseScouterFinalDamageTable(BISHOP_FD_WITH_MAGIC_ATTACK, "bishop");
+
+  assert.equal(result.className, "bishop");
+  assert.equal(result.statType, "int");
+  assert.deepEqual(result.rows.slice(1, 3), [
+    { stat: "Attack", value: 30, finalDamagePercent: 0.611 },
+    { stat: "Attack%", value: 12, finalDamagePercent: 5.233 },
   ]);
 });
 

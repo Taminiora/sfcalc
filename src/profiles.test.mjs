@@ -24,6 +24,22 @@ import {
   validateStatEquivalencePresetInput,
 } from "./profiles.mjs";
 import { formatStrategy } from "./strategyFormat.mjs";
+import { parseScouterFinalDamageTable } from "./statEquivalenceParser.mjs";
+
+const BISHOP_FD_WITH_MAGIC_ATTACK = `항목    Value    Final Damage%
+Boss Damage    40    3.394%
+M.Attack    30    0.611%
+M.Attack%    12    5.233%
+Critical Dmg    8    2.369%
+Ignore Dff(300)    40    0.614%
+Ignore Dff(380)    40    0.781%
+INT    30    0.232%
+INT%    12    1.037%
+Not Affected by % INT    200    0.201%
+LUK    30    0.019%
+LUK%    12    0.141%
+Not Affected by % LUK    200    0.050%
+All Stat%    9    0.883%`;
 
 test("defaults stat equivalence to the original Wind Archer screenshot values", () => {
   const statEquivalence = loadStatEquivalence(new MapStorage());
@@ -158,6 +174,22 @@ test("derives star-force FD gain from wiki stat gains plus manual additions", ()
   assert.equal(Number(metrics.fdPerMesoP95.toFixed(6)), 0.3949);
 });
 
+test("values Bishop star-force attack gains from magic attack Scouter rows", () => {
+  const statEquivalence = parseScouterFinalDamageTable(BISHOP_FD_WITH_MAGIC_ATTACK, "bishop");
+  const fdGain = calculateStarforceFdGain(
+    {
+      itemType: "armor",
+      itemLevel: 250,
+      startStar: 22,
+      targetStar: 23,
+      statGains: {},
+    },
+    statEquivalence,
+  );
+
+  assert.equal(Number(fdGain.toFixed(6)), 0.468433);
+});
+
 test("breaks star-force FD gain into automatic, manual, and net valued stats", () => {
   const statEquivalence = validateStatEquivalenceInput({
     className: "wind_archer",
@@ -258,6 +290,18 @@ test("expands class stat gains for star-force previews", () => {
   assert.deepEqual(
     expandClassStatGains(
       { Attack: 120, "Class Stat": 119 },
+      validateStatEquivalenceInput({ className: "bishop" }),
+    ),
+    {
+      "M.Attack": 120,
+      "Main Stat": 119,
+      "Secondary Stat": 119,
+    },
+  );
+
+  assert.deepEqual(
+    expandClassStatGains(
+      { Attack: 120, "Class Stat": 119 },
       validateStatEquivalenceInput({ className: "wind_archer" }),
     ),
     {
@@ -303,6 +347,30 @@ test("expands class stat gains for star-force previews", () => {
       HP: 119,
       STR: 119,
     },
+  );
+});
+
+test("labels Bishop star-force attack breakdown as magic attack", () => {
+  const statEquivalence = parseScouterFinalDamageTable(BISHOP_FD_WITH_MAGIC_ATTACK, "bishop");
+  const rows = calculateStarforceFdBreakdown(
+    {
+      itemType: "armor",
+      itemLevel: 250,
+      startStar: 22,
+      targetStar: 23,
+      statGains: {},
+    },
+    statEquivalence,
+  );
+
+  assert.deepEqual(
+    rows.map(({ stat, label, automatic, fdGain }) => ({
+      stat,
+      label,
+      automatic,
+      fdGain: Number(fdGain.toFixed(6)),
+    })),
+    [{ stat: "Attack", label: "M.Attack", automatic: 23, fdGain: 0.468433 }],
   );
 });
 
