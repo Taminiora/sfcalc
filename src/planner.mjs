@@ -9,6 +9,7 @@ import {
 import { calculateStarforceStatGains } from "./starforceStats.mjs";
 import {
   DEFAULT_STAT_EQUIVALENCE_CLASS,
+  applyAdditionalMesoCost,
   calculateStarforceFdBreakdown,
   calculateStarforceFdGain,
   deriveProfileMetrics,
@@ -82,6 +83,7 @@ const profileFields = {
   cubeSale: document.querySelector("#profile-cube-sale"),
   cubingDesiredTier: document.querySelector("#profile-cubing-desired-tier"),
   cubingTarget: document.querySelector("#profile-cubing-target"),
+  additionalMesoCost: document.querySelector("#profile-additional-meso-cost"),
   notes: document.querySelector("#profile-notes"),
 };
 
@@ -164,6 +166,16 @@ function initializeTheme() {
 
 function formatInteger(value) {
   return Math.round(value).toLocaleString("en-US");
+}
+
+function readFormattedIntegerInput(input) {
+  const rawValue = String(input.value ?? "").replace(/,/g, "").trim();
+  return rawValue ? Number(rawValue) : 0;
+}
+
+function formatIntegerInput(input) {
+  const digits = String(input.value ?? "").replace(/[^\d]/g, "");
+  input.value = digits ? formatInteger(Number(digits)) : "";
 }
 
 function formatCompactMeso(value) {
@@ -805,7 +817,7 @@ function renderOptimizer() {
 
 function clearProfileForm() {
   profileForm.dataset.editingId = "";
-  profileFields.name.value = "21 to 22 armor";
+  profileFields.name.value = "";
   profileFields.upgradeType.value = "starforce";
   profileFields.itemType.value = "armor";
   profileFields.itemLevel.value = "250";
@@ -822,6 +834,7 @@ function clearProfileForm() {
   profileFields.cubeType.value = "red";
   profileFields.cubeSale.checked = false;
   profileFields.cubingDesiredTier.value = "legendary";
+  profileFields.additionalMesoCost.value = "0";
   renderCubingTargetOptions("percAtt+39");
   profileFields.notes.value = "";
   setStatGains(profileStatGains);
@@ -855,6 +868,7 @@ function fillProfileForm(profile) {
   profileFields.cubeType.value = profile.source?.cubeType ?? "red";
   profileFields.cubeSale.checked = Boolean(profile.source?.cubeSale);
   profileFields.cubingDesiredTier.value = profile.source?.desiredTier ?? "legendary";
+  profileFields.additionalMesoCost.value = formatInteger(profile.source?.additionalMesoCost ?? 0);
   renderCubingTargetOptions(profile.source?.target ?? "percAtt+39");
   profileFields.notes.value = profile.notes;
   setStatGains(profileStatGains, profile.statGains);
@@ -1013,6 +1027,7 @@ profileForm.addEventListener("submit", (event) => {
   try {
     const editingId = profileForm.dataset.editingId || "";
     const isCubing = profileFields.upgradeType.value === "cubing";
+    const additionalMesoCost = readFormattedIntegerInput(profileFields.additionalMesoCost);
     const source = isCubing
       ? {
           cubeType: profileFields.cubeType.value,
@@ -1022,6 +1037,7 @@ profileForm.addEventListener("submit", (event) => {
           desiredTier: profileFields.cubingDesiredTier.value,
           target: profileFields.cubingTarget.value,
           targetLabel: getSelectedCubingStrategyLabel(),
+          additionalMesoCost,
         }
       : {
           itemType: profileFields.itemType.value,
@@ -1031,10 +1047,12 @@ profileForm.addEventListener("submit", (event) => {
           spareCount: Number(profileFields.spareCount.value),
           hitProbability: Number(profileFields.hitProbability.value) / 100,
           events: getProfileEvents(),
+          additionalMesoCost,
         };
-    const costs = isCubing
-      ? calculateCubingProfileCosts(source)
-      : calculateStarforceProfileCosts(source);
+    const costs = applyAdditionalMesoCost(
+      isCubing ? calculateCubingProfileCosts(source) : calculateStarforceProfileCosts(source),
+      additionalMesoCost,
+    );
     const profile = validateProfileInput({
       id: editingId,
       name: getProfileName({ isCubing, source }),
@@ -1091,6 +1109,9 @@ profileFields.itemType.addEventListener("change", renderProfileStarforceGains);
 profileFields.itemLevel.addEventListener("input", renderProfileStarforceGains);
 profileFields.startStar.addEventListener("input", renderProfileStarforceGains);
 profileFields.targetStar.addEventListener("input", renderProfileStarforceGains);
+profileFields.additionalMesoCost.addEventListener("input", () => {
+  formatIntegerInput(profileFields.additionalMesoCost);
+});
 optimizerFields.itemType.addEventListener("change", renderOptimizerStarforceGains);
 optimizerFields.itemLevel.addEventListener("input", renderOptimizerStarforceGains);
 optimizerFields.startStar.addEventListener("input", renderOptimizerStarforceGains);

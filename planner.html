@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Enhancement Planner</title>
-    <link rel="stylesheet" href="./src/styles.css?v=20260618-library-widths">
+    <link rel="stylesheet" href="./src/styles.css?v=20260619-meso-width">
   </head>
   <body>
     <main class="app-shell planner-shell">
@@ -87,7 +87,7 @@
             </div>
             <label>
               <span>Name</span>
-              <input id="profile-name" type="text" value="21 to 22 armor">
+              <input id="profile-name" type="text" value="">
             </label>
             <label class="short-select">
               <span>Upgrade type</span>
@@ -219,6 +219,15 @@
                 <div class="stat-gain-grid" id="profile-cubing-stat-gains"></div>
               </details>
             </section>
+            <details class="stat-gain-details">
+              <summary>Additional meso cost</summary>
+              <div class="two-col compact-number-grid">
+                <label>
+                  <span>Meso cost</span>
+                  <input id="profile-additional-meso-cost" class="meso-cost-input" inputmode="numeric" type="text" value="0">
+                </label>
+              </div>
+            </details>
             <label>
               <span>Notes</span>
               <textarea id="profile-notes" rows="3"></textarea>
@@ -432,6 +441,6 @@
       </section>
     </main>
 
-    <script type="module" src="./src/planner.mjs?v=20260617-theme-toggle"></script>
+    <script type="module" src="./src/planner.mjs?v=20260619-additional-meso-cost"></script>
   </body>
 </html>

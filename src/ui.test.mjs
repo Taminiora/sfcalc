@@ -160,16 +160,17 @@ test("planner save upgrade form supports star-force and cubing modes", () => {
   assert.equal(script.includes('type: isCubing ? "cubing" : "starforce"'), true);
 });
 
-test("planner defaults the saved Star Force upgrade to 21 to 22 armor", () => {
+test("planner leaves the saved upgrade name blank by default", () => {
   const html = readFileSync(new URL("../planner.html", import.meta.url), "utf8");
   const script = readFileSync(new URL("./planner.mjs", import.meta.url), "utf8");
 
-  assert.match(html, /id="profile-name"[^>]*value="21 to 22 armor"/);
+  assert.match(html, /id="profile-name"[^>]*value=""/);
   assert.match(html, /<option value="armor" selected>Armor<\/option>/);
   assert.match(html, /id="profile-start-star"[^>]*value="21"/);
   assert.match(html, /id="profile-target-star"[^>]*value="22"/);
-  assert.equal(script.includes('profileFields.name.value = "21 to 22 armor"'), true);
+  assert.equal(script.includes('profileFields.name.value = ""'), true);
   assert.equal(script.includes('profileFields.itemType.value = "armor"'), true);
+  assert.equal(script.includes("return profileFields.name.value.trim() || getDefaultProfileName"), true);
 });
 
 test("planner defaults probability UX to 85 percent target odds", () => {
@@ -211,10 +212,16 @@ test("planner defaults SF event checkboxes to enabled", () => {
 
 test("planner collapses additional stat changes and takes spares on saved upgrades only", () => {
   const html = readFileSync(new URL("../planner.html", import.meta.url), "utf8");
+  const script = readFileSync(new URL("./planner.mjs", import.meta.url), "utf8");
 
   assert.equal(html.includes("Additional stat changes"), true);
+  assert.equal(html.includes("Additional meso cost"), true);
   assert.equal(html.includes("Additional stat gains"), false);
   assert.equal(html.includes("<details"), true);
+  assert.equal(html.includes("profile-additional-meso-cost"), true);
+  assert.match(html, /id="profile-additional-meso-cost"[^>]*class="meso-cost-input"/);
+  assert.match(html, /id="profile-additional-meso-cost"[^>]*type="text"/);
+  assert.equal(html.includes("Meso cost"), true);
   assert.equal(html.includes("profile-spare-count"), true);
   assert.equal(html.includes("optimizer-spare-count"), false);
   assert.equal(html.includes("Available spares"), true);
@@ -222,6 +229,20 @@ test("planner collapses additional stat changes and takes spares on saved upgrad
   assert.equal(html.includes("optimizer-spare-cost"), false);
   assert.equal(html.includes("Cost per spare"), false);
   assert.equal(html.includes("Banked-spare cost"), false);
+  assert.equal(script.includes("additionalMesoCost: document.querySelector"), true);
+  assert.equal(
+    script.includes("const additionalMesoCost = readFormattedIntegerInput(profileFields.additionalMesoCost)"),
+    true,
+  );
+  assert.equal(script.includes("function formatIntegerInput"), true);
+  assert.equal(script.includes("function readFormattedIntegerInput"), true);
+  assert.equal(script.includes('profileFields.additionalMesoCost.addEventListener("input"'), true);
+  assert.equal(script.includes("applyAdditionalMesoCost("), true);
+  assert.equal(script.includes('profileFields.additionalMesoCost.value = "0"'), true);
+  assert.equal(
+    script.includes("profileFields.additionalMesoCost.value = formatInteger(profile.source?.additionalMesoCost ?? 0)"),
+    true,
+  );
 });
 
 test("planner cubing stat changes are open and named plainly", () => {
@@ -510,6 +531,8 @@ test("planner uses compact columns for bounded numeric SF inputs", () => {
   assert.match(css, /\.compact-grid-hint\s*\{[^}]*grid-column: 1 \/ -1/s);
   assert.equal(css.includes("width: 8ch"), true);
   assert.equal(css.includes("width: 9ch"), true);
+  assert.equal(css.includes(".compact-number-grid input.meso-cost-input"), true);
+  assert.match(css, /\.compact-number-grid input\.meso-cost-input\s*\{[^}]*width: 18ch/s);
   assert.equal(css.includes(".stat-gain-grid input"), true);
 });
 

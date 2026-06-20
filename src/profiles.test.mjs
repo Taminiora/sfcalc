@@ -6,6 +6,7 @@ import {
   DEFAULT_PROFILE_INPUTS,
   DEFAULT_STAT_EQUIVALENCE_CLASS,
   DEFAULT_STAT_ROWS,
+  applyAdditionalMesoCost,
   calculateFdGain,
   calculateStarforceFdBreakdown,
   calculateStarforceFdGain,
@@ -374,6 +375,35 @@ test("stat-equivalence storage keeps class metadata and drops stale image previe
 });
 
 test("refreshes stored star-force costs and recovery strategy from source settings", () => {
+  const source = {
+    itemType: "weapon",
+    itemLevel: 250,
+    startStar: 21,
+    targetStar: 22,
+    spareCount: 6,
+    hitProbability: 0.95,
+    events: {
+      starCatch: true,
+      costReduction30: true,
+      boomReduction30: true,
+    },
+    percentileCosts: {
+      strategy: [{ star: 21, nextStar: 22, mode: 4 }],
+    },
+  };
+  const [baselineProfile] = refreshStarforceProfileCosts([
+    validateProfileInput({
+      id: "profile-0",
+      name: "21 to 22 weapon baseline",
+      type: "starforce",
+      statGains: {},
+      p50Cost: 1,
+      p75Cost: 1,
+      p95Cost: 1,
+      notes: "",
+      source,
+    }),
+  ]);
   const [profile] = refreshStarforceProfileCosts([
     validateProfileInput({
       id: "profile-1",
@@ -384,32 +414,70 @@ test("refreshes stored star-force costs and recovery strategy from source settin
       p75Cost: 1,
       p95Cost: 1,
       notes: "",
-      source: {
-        itemType: "weapon",
-        itemLevel: 250,
-        startStar: 21,
-        targetStar: 22,
-        spareCount: 6,
-        hitProbability: 0.95,
-        events: {
-          starCatch: true,
-          costReduction30: true,
-          boomReduction30: true,
-        },
-        percentileCosts: {
-          strategy: [{ star: 21, nextStar: 22, mode: 4 }],
-        },
-      },
+      source: { ...source, additionalMesoCost: 1_500_000_000 },
     }),
   ]);
 
   assert.notEqual(profile.p95Cost, 1);
+  assert.equal(profile.p95Cost, baselineProfile.p95Cost + 1_500_000_000);
+  assert.equal(
+    profile.source.percentileCosts.expectedMeso,
+    baselineProfile.source.percentileCosts.expectedMeso + 1_500_000_000,
+  );
   assert.equal(profile.source.spareCount, 6);
+  assert.equal(profile.source.additionalMesoCost, 1_500_000_000);
   assert.equal(profile.source.percentileCosts.availableSpares, 6);
   assert.match(formatStrategy(profile.source.percentileCosts.strategy), /^\d{3}\/\d{2}\/\d{2}$/);
 });
 
+test("applies additional meso cost only to meso fields", () => {
+  const costs = applyAdditionalMesoCost(
+    {
+      p50Cost: 10,
+      p75Cost: 20,
+      p85Cost: 30,
+      p95Cost: 40,
+      expectedMeso: 50,
+      expectedCost: 60,
+      expectedBooms: 2,
+      p85Cubes: 100,
+    },
+    7,
+  );
+
+  assert.deepEqual(costs, {
+    p50Cost: 17,
+    p75Cost: 27,
+    p85Cost: 37,
+    p95Cost: 47,
+    expectedMeso: 57,
+    expectedCost: 67,
+    expectedBooms: 2,
+    p85Cubes: 100,
+  });
+});
+
 test("refreshes stored cubing costs from source settings", () => {
+  const source = {
+    cubeType: "red",
+    itemType: "weapon",
+    itemLevel: 250,
+    desiredTier: "legendary",
+    target: "lineAtt+3",
+  };
+  const [baselineProfile] = refreshStarforceProfileCosts([
+    validateProfileInput({
+      id: "profile-0",
+      name: "3L attack weapon baseline",
+      type: "cubing",
+      statGains: { "Attack%": 39 },
+      p50Cost: 1,
+      p75Cost: 1,
+      p95Cost: 1,
+      notes: "",
+      source,
+    }),
+  ]);
   const [profile] = refreshStarforceProfileCosts([
     validateProfileInput({
       id: "profile-1",
@@ -420,18 +488,18 @@ test("refreshes stored cubing costs from source settings", () => {
       p75Cost: 1,
       p95Cost: 1,
       notes: "",
-      source: {
-        cubeType: "red",
-        itemType: "weapon",
-        itemLevel: 250,
-        desiredTier: "legendary",
-        target: "lineAtt+3",
-      },
+      source: { ...source, additionalMesoCost: 2_000_000_000 },
     }),
   ]);
 
   assert.notEqual(profile.p95Cost, 1);
+  assert.equal(profile.p95Cost, baselineProfile.p95Cost + 2_000_000_000);
+  assert.equal(
+    profile.source.percentileCosts.expectedCost,
+    baselineProfile.source.percentileCosts.expectedCost + 2_000_000_000,
+  );
   assert.equal(profile.source.cubeType, "red");
+  assert.equal(profile.source.additionalMesoCost, 2_000_000_000);
   assert.equal(profile.source.percentileCosts.strategy, "lineAtt+3");
   assert.ok(profile.source.percentileCosts.p85Cubes > 0);
   assert.equal(profile.source.percentileCosts.p95Cost, profile.source.percentileCosts.p85Cost);

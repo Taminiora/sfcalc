@@ -803,6 +803,10 @@ tr:last-child td {
   width: 9ch;
 }
 
+.compact-number-grid input.meso-cost-input {
+  width: 18ch;
+}
+
 .compact-grid-hint {
   grid-column: 1 / -1;
   margin-top: -4px;

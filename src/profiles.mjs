@@ -46,6 +46,15 @@ const DEFAULT_STARFORCE_EVENTS = Object.freeze({
   boomReduction30: true,
 });
 
+const MESO_COST_FIELDS = Object.freeze([
+  "p50Cost",
+  "p75Cost",
+  "p85Cost",
+  "p95Cost",
+  "expectedMeso",
+  "expectedCost",
+]);
+
 function createDefaultStarforceProfile({
   id,
   name,
@@ -561,6 +570,22 @@ function parsePositiveNumber(value, label) {
   return number;
 }
 
+function getAdditionalMesoCost(source) {
+  return parseNumber(source?.additionalMesoCost ?? 0, "additional meso cost");
+}
+
+export function applyAdditionalMesoCost(costs, additionalMesoCost = 0) {
+  const additional = parseNumber(additionalMesoCost ?? 0, "additional meso cost");
+  return Object.fromEntries(
+    Object.entries(costs).map(([key, value]) => [
+      key,
+      MESO_COST_FIELDS.includes(key) && Number.isFinite(Number(value))
+        ? Number(value) + additional
+        : value,
+    ]),
+  );
+}
+
 function getId(input, prefix = "profile") {
   if (input.id) {
     return String(input.id);
@@ -914,14 +939,18 @@ export function refreshStarforceProfileCosts(profiles) {
   return profiles.map((profile) => {
     const validProfile = validateProfileInput(profile);
     if (validProfile.type === "cubing" && hasCubingCostSource(validProfile.source)) {
-      const costs = calculateCubingProfileCosts({
-        cubeType: validProfile.source.cubeType,
-        itemType: validProfile.source.itemType,
-        itemLevel: Number(validProfile.source.itemLevel),
-        cubeSale: Boolean(validProfile.source.cubeSale),
-        desiredTier: validProfile.source.desiredTier,
-        target: validProfile.source.target,
-      });
+      const additionalMesoCost = getAdditionalMesoCost(validProfile.source);
+      const costs = applyAdditionalMesoCost(
+        calculateCubingProfileCosts({
+          cubeType: validProfile.source.cubeType,
+          itemType: validProfile.source.itemType,
+          itemLevel: Number(validProfile.source.itemLevel),
+          cubeSale: Boolean(validProfile.source.cubeSale),
+          desiredTier: validProfile.source.desiredTier,
+          target: validProfile.source.target,
+        }),
+        additionalMesoCost,
+      );
 
       return validateProfileInput({
         ...validProfile,
@@ -930,6 +959,7 @@ export function refreshStarforceProfileCosts(profiles) {
         p95Cost: costs.p95Cost,
         source: {
           ...validProfile.source,
+          additionalMesoCost,
           percentileCosts: costs,
         },
       });
@@ -939,17 +969,21 @@ export function refreshStarforceProfileCosts(profiles) {
       return validProfile;
     }
 
-    const costs = calculateStarforceProfileCosts({
-      itemLevel: Number(validProfile.source.itemLevel),
-      startStar: Number(validProfile.source.startStar),
-      targetStar: Number(validProfile.source.targetStar),
-      spareCount:
-        validProfile.source.spareCount === undefined
-          ? undefined
-          : Number(validProfile.source.spareCount),
-      hitProbability: Number(validProfile.source.hitProbability),
-      events: validProfile.source.events ?? {},
-    });
+    const additionalMesoCost = getAdditionalMesoCost(validProfile.source);
+    const costs = applyAdditionalMesoCost(
+      calculateStarforceProfileCosts({
+        itemLevel: Number(validProfile.source.itemLevel),
+        startStar: Number(validProfile.source.startStar),
+        targetStar: Number(validProfile.source.targetStar),
+        spareCount:
+          validProfile.source.spareCount === undefined
+            ? undefined
+            : Number(validProfile.source.spareCount),
+        hitProbability: Number(validProfile.source.hitProbability),
+        events: validProfile.source.events ?? {},
+      }),
+      additionalMesoCost,
+    );
 
     return validateProfileInput({
       ...validProfile,
@@ -958,6 +992,7 @@ export function refreshStarforceProfileCosts(profiles) {
       p95Cost: costs.p95Cost,
       source: {
         ...validProfile.source,
+        additionalMesoCost,
         percentileCosts: costs,
       },
     });
