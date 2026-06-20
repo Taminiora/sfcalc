@@ -25,7 +25,11 @@ import {
   validateStatEquivalenceInput,
   validateStatEquivalencePresetInput,
 } from "./profiles.mjs";
-import { calculateStarforceProfileCosts, optimizeStarforce } from "./plannerStarforce.mjs";
+import {
+  calculateStarforceProfileCosts,
+  formatStarforceStrategyForSource,
+  optimizeStarforce,
+} from "./plannerStarforce.mjs?v=20260619-reachable-strategy-display";
 import { formatStrategy } from "./strategyFormat.mjs?v=20260617-strategy-display";
 
 const tabs = document.querySelectorAll("[data-tab]");
@@ -381,7 +385,14 @@ function getDefaultProfileName({ isCubing, source }) {
     return `${formatItemTypeName(source.itemType)}: ${source.targetLabel ?? source.target}`;
   }
 
-  return `${source.startStar}★ → ${source.targetStar}★ level ${source.itemLevel} ${source.itemType}`;
+  return `${source.startStar}★ → ${source.targetStar}★ level ${source.itemLevel} ${source.itemType} (${formatSpareCount(source.spareCount)})`;
+}
+
+function formatSpareCount(spareCount) {
+  const count = Number(spareCount);
+  const normalizedCount = Number.isFinite(count) ? Math.max(0, Math.round(count)) : 0;
+  const label = normalizedCount === 1 ? "spare" : "spares";
+  return `${formatInteger(normalizedCount)} ${label}`;
 }
 
 function getProfileName({ isCubing, source }) {
@@ -592,9 +603,12 @@ function formatSavedStrategy(profile) {
     return profile.source?.targetLabel ?? profile.source?.percentileCosts?.strategy ?? profile.source?.target ?? "-";
   }
 
-  return formatStrategy(profile.source?.percentileCosts?.strategy ?? [], {
+  return formatStrategy(
+    formatStarforceStrategyForSource(profile.source?.percentileCosts?.strategy ?? [], profile.source),
+    {
     showBaseSuffix: false,
-  }) || "-";
+    },
+  ) || "-";
 }
 
 function formatSavedExpected(profile) {
@@ -673,9 +687,21 @@ function renderProfiles() {
         <td>${formatEfficiency(profile.fdPerMesoP95)}</td>
         <td>
           <div class="table-actions">
-            <button data-action="edit" data-id="${profile.id}" type="button">Edit</button>
-            <button data-action="delete" data-id="${profile.id}" type="button">Delete</button>
+            <div class="action-stack">
+              <button data-action="edit" data-id="${profile.id}" type="button">Edit</button>
+              <button data-action="clone" data-id="${profile.id}" type="button">Clone</button>
+            </div>
           </div>
+        </td>
+        <td class="delete-action-cell">
+          <button
+            aria-label="Delete ${profile.name}"
+            class="icon-danger-button"
+            data-action="delete"
+            data-id="${profile.id}"
+            title="Delete"
+            type="button"
+          >×</button>
         </td>
       `;
       return row;
@@ -874,6 +900,13 @@ function fillProfileForm(profile) {
   setStatGains(profileStatGains, profile.statGains);
   setStatGains(profileCubingStatGains, profile.statGains);
   renderProfileMode();
+}
+
+function cloneProfileForm(profile) {
+  fillProfileForm(profile);
+  profileForm.dataset.editingId = "";
+  profileFields.name.value = `Copy of ${profile.name}`;
+  setMessage(profileMessage, "Loaded a copy. Make changes, then calculate and save.");
 }
 
 function renderAll() {
@@ -1144,7 +1177,15 @@ profileRows.addEventListener("click", (event) => {
     fillProfileForm(profile);
   }
 
+  if (button.dataset.action === "clone") {
+    cloneProfileForm(profile);
+  }
+
   if (button.dataset.action === "delete") {
+    if (!window.confirm(`Delete "${profile.name}"?`)) {
+      return;
+    }
+
     profiles = profiles.filter((candidate) => candidate.id !== profile.id);
     saveProfiles(undefined, profiles);
     renderProfiles();

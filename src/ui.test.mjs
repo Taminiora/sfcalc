@@ -170,6 +170,8 @@ test("planner leaves the saved upgrade name blank by default", () => {
   assert.match(html, /id="profile-target-star"[^>]*value="22"/);
   assert.equal(script.includes('profileFields.name.value = ""'), true);
   assert.equal(script.includes('profileFields.itemType.value = "armor"'), true);
+  assert.equal(script.includes("function formatSpareCount"), true);
+  assert.equal(script.includes("formatSpareCount(source.spareCount)"), true);
   assert.equal(script.includes("return profileFields.name.value.trim() || getDefaultProfileName"), true);
 });
 
@@ -348,6 +350,31 @@ test("planner saved upgrades can sort by efficiency and costs", () => {
   assert.equal(script.includes("aria-sort"), true);
   assert.match(css, /\.sort-button\s*\{[\s\S]*?cursor: pointer/s);
   assert.match(css, /\.sort-indicator\s*\{[\s\S]*?font-size: 0\.68rem/s);
+});
+
+test("planner saved upgrade actions stack clone and edit with compact delete", () => {
+  const html = readFileSync(new URL("../planner.html", import.meta.url), "utf8");
+  const script = readFileSync(new URL("./planner.mjs", import.meta.url), "utf8");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+
+  assert.equal(html.includes('class="delete-action-heading"'), true);
+  assert.equal(html.includes('class="visually-hidden">Delete'), true);
+  assert.equal(script.includes('data-action="clone"'), true);
+  assert.equal(script.includes('class="action-stack"'), true);
+  assert.equal(script.includes('class="delete-action-cell"'), true);
+  assert.equal(script.includes('class="icon-danger-button"'), true);
+  assert.equal(script.includes('aria-label="Delete'), true);
+  assert.equal(script.includes('button.dataset.action === "clone"'), true);
+  assert.equal(script.includes('window.confirm(`Delete "${profile.name}"?`)'), true);
+  assert.equal(script.includes('profileForm.dataset.editingId = ""'), true);
+  assert.ok(script.indexOf('data-action="edit"') < script.indexOf('data-action="clone"'));
+  assert.match(css, /\.saved-upgrades-table th:nth-child\(8\),[\s\S]*?\.saved-upgrades-table td:nth-child\(8\)\s*\{[\s\S]*?width: 4%/s);
+  assert.match(css, /\.delete-action-heading,[\s\S]*?\.delete-action-cell\s*\{/);
+  assert.match(css, /\.visually-hidden\s*\{/);
+  assert.match(css, /\.action-stack\s*\{/);
+  assert.match(css, /\.icon-danger-button\s*\{/);
+  assert.match(css, /\.icon-danger-button\s*\{[\s\S]*?background: transparent/s);
+  assert.match(css, /\.icon-danger-button\s*\{[\s\S]*?border: 0/s);
 });
 
 test("planner can clear all saved upgrades with confirmation", () => {

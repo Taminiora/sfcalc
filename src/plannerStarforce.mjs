@@ -102,15 +102,36 @@ function getModeId(modeMap, star) {
   return modeMap.get(star) ?? "Base";
 }
 
-function getRecoveryDisplayStart(startStar, targetStar) {
-  let displayStart = startStar;
-  for (let star = startStar; star < targetStar; star += 1) {
-    const restoreStar = RESTORE_LEVEL[star];
-    if (restoreStar !== undefined && restoreStar >= MODE_START_STAR) {
-      displayStart = Math.min(displayStart, restoreStar);
+function getReachableStars({ itemLevel, startStar, targetStar, events, modeMap }) {
+  const reachableStars = new Set([startStar]);
+  let changed = true;
+
+  while (changed) {
+    changed = false;
+
+    for (let star = MIN_STAR; star < targetStar; star += 1) {
+      if (!reachableStars.has(star)) {
+        continue;
+      }
+
+      const nextStar = star + 1;
+      if (nextStar < targetStar && !reachableStars.has(nextStar)) {
+        reachableStars.add(nextStar);
+        changed = true;
+      }
+
+      const mode = getModeId(modeMap, star);
+      const tier = getTier(star, mode);
+      const adjustedTap = getAdjustedTap({ itemLevel, star, tier, events });
+      const restoreStar = RESTORE_LEVEL[star];
+      if (adjustedTap.boomProbability > 0 && restoreStar !== undefined && !reachableStars.has(restoreStar)) {
+        reachableStars.add(restoreStar);
+        changed = true;
+      }
     }
   }
-  return displayStart;
+
+  return reachableStars;
 }
 
 function evaluatePolicy({ itemLevel, startStar, targetStar, events, modeMap }) {
@@ -118,7 +139,7 @@ function evaluatePolicy({ itemLevel, startStar, targetStar, events, modeMap }) {
   const boomsToNextByStar = new Map();
   const targetRows = [];
   const strategyRows = [];
-  const recoveryDisplayStart = getRecoveryDisplayStart(startStar, targetStar);
+  const reachableStars = getReachableStars({ itemLevel, startStar, targetStar, events, modeMap });
 
   for (let star = MIN_STAR; star < targetStar; star += 1) {
     const mode = getModeId(modeMap, star);
@@ -140,13 +161,14 @@ function evaluatePolicy({ itemLevel, startStar, targetStar, events, modeMap }) {
       star,
       nextStar: star + 1,
       mode,
+      ...(modeMap.has(star) && !reachableStars.has(star) ? { displayMode: "*" } : {}),
       tier,
       ...adjustedTap,
       expectedMeso,
       expectedBooms,
     };
 
-    if (modeMap.has(star) || star >= recoveryDisplayStart) {
+    if (modeMap.has(star) || (star > MODE_END_STAR && reachableStars.has(star))) {
       strategyRows.push(row);
     }
 
@@ -163,6 +185,54 @@ function evaluatePolicy({ itemLevel, startStar, targetStar, events, modeMap }) {
     expectedMeso,
     expectedBooms,
   };
+}
+
+function applyReachableDisplay({ rows, itemLevel, startStar, targetStar, events, modeMap }) {
+  const reachableStars = getReachableStars({ itemLevel, startStar, targetStar, events, modeMap });
+
+  return rows
+    .filter((row) => modeMap.has(row.star) || (row.star > MODE_END_STAR && reachableStars.has(row.star)))
+    .map((row) => {
+      const { displayMode: _displayMode, ...rest } = row;
+      if (modeMap.has(row.star) && !reachableStars.has(row.star)) {
+        return { ...rest, displayMode: "*" };
+      }
+      return rest;
+    });
+}
+
+export function formatStarforceStrategyForSource(strategy, source = {}) {
+  if (!Array.isArray(strategy)) {
+    return [];
+  }
+
+  const itemLevel = Number(source.itemLevel);
+  const startStar = Number(source.startStar);
+  const targetStar = Number(source.targetStar);
+  if (!Number.isFinite(itemLevel) || !Number.isInteger(startStar) || !Number.isInteger(targetStar)) {
+    return strategy;
+  }
+
+  const rows = strategy.map((row) => ({
+    ...row,
+    star: Number(row.star),
+    nextStar: Number(row.nextStar),
+    mode: row.mode === undefined ? "Base" : String(row.mode),
+  }));
+  const modeMap = new Map(
+    rows
+      .filter((row) => row.star >= MODE_START_STAR && row.star <= MODE_END_STAR)
+      .map((row) => [row.star, row.mode]),
+  );
+
+  return applyReachableDisplay({
+    rows,
+    itemLevel,
+    startStar,
+    targetStar,
+    events: normalizeEvents(source.events ?? {}),
+    modeMap,
+  });
 }
 
 function createTailTotals() {
@@ -196,7 +266,6 @@ function advancePolicyState({
   startStar,
   events,
   modeStars,
-  recoveryDisplayStart,
   star,
   mode,
 }) {
@@ -209,6 +278,7 @@ function advancePolicyState({
     adjustedTap.successRate;
   const expectedBooms =
     (adjustedTap.boomProbability * (1 + recovery.booms)) / adjustedTap.successRate;
+  const usesMode = modeStars.has(star);
   const row = {
     star,
     nextStar: star + 1,
@@ -219,14 +289,13 @@ function advancePolicyState({
     expectedBooms,
   };
   const modeMap = new Map(state.modeMap);
-  const usesMode = modeStars.has(star);
   if (usesMode) {
     modeMap.set(star, mode);
   }
 
   return {
     modeMap,
-    rows: usesMode || star >= recoveryDisplayStart ? [...state.rows, row] : state.rows,
+    rows: usesMode || star > MODE_END_STAR ? [...state.rows, row] : state.rows,
     expectedMeso: state.expectedMeso + (star >= startStar ? expectedMeso : 0),
     expectedBooms: state.expectedBooms + (star >= startStar ? expectedBooms : 0),
     tailTotals: appendTailTotals(state.tailTotals, star, row),
@@ -286,7 +355,6 @@ function prunePolicyStates(states) {
 function getPrunedPolicyCandidates({ itemLevel, startStar, targetStar, events }) {
   const normalizedEvents = normalizeEvents(events);
   const modeStars = new Set(getModeStars(startStar, targetStar));
-  const recoveryDisplayStart = getRecoveryDisplayStart(startStar, targetStar);
   let frontier = [
     {
       modeMap: new Map(),
@@ -309,7 +377,6 @@ function getPrunedPolicyCandidates({ itemLevel, startStar, targetStar, events })
             startStar,
             events: normalizedEvents,
             modeStars,
-            recoveryDisplayStart,
             star,
             mode,
           }),
@@ -320,7 +387,14 @@ function getPrunedPolicyCandidates({ itemLevel, startStar, targetStar, events })
   }
 
   return frontier.map((candidate) => ({
-    rows: candidate.rows,
+    rows: applyReachableDisplay({
+      rows: candidate.rows,
+      itemLevel,
+      startStar,
+      targetStar,
+      events: normalizedEvents,
+      modeMap: candidate.modeMap,
+    }),
     expectedMeso: candidate.expectedMeso,
     expectedBooms: candidate.expectedBooms,
     modeMap: candidate.modeMap,
@@ -713,6 +787,7 @@ function formatStrategyRows(rows) {
     star: row.star,
     nextStar: row.nextStar,
     mode: row.mode,
+    ...(row.displayMode ? { displayMode: row.displayMode } : {}),
     tapCost: row.tapCost,
     successRate: row.successRate,
     boomProbability: row.boomProbability,

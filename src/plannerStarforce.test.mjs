@@ -5,6 +5,7 @@ import {
   calculateSpareProbability,
   calculateStarforceProfileCosts,
   findRequiredSpares,
+  formatStarforceStrategyForSource,
   optimizeStarforce,
 } from "./plannerStarforce.mjs";
 import { getBaseCost } from "./starforce.mjs";
@@ -151,7 +152,7 @@ test("includes recovery strategy tiers for high-star targets", () => {
     result.strategy.map((row) => row.star),
     [15, 16, 17, 18, 19, 20, 21],
   );
-  assert.match(formatStrategy(result.strategy), /^\d{3}\/\d{2}\/\d{2}$/);
+  assert.equal(formatStrategy(result.strategy), "***/**/*4");
   assert.ok(result.strategy.reduce((sum, row) => sum + row.expectedMeso, 0) > result.expectedMeso);
 });
 
@@ -174,7 +175,49 @@ test("includes recursive recovery strategy when 22 star taps can boom", () => {
     result.strategy.map((row) => row.star),
     [15, 16, 17, 18, 19, 20, 21, 22],
   );
-  assert.match(formatStrategy(result.strategy), /^\d{3}\/\d{2}\/\d{2}\/B$/);
+  assert.equal(formatStrategy(result.strategy), "**4/44/44/B");
+});
+
+test("shows lower recovery modes when a 22 star target can recursively boom below 17", () => {
+  const result = calculateStarforceProfileCosts({
+    itemLevel: 250,
+    startStar: 22,
+    targetStar: 23,
+    spareCount: 10,
+    hitProbability: 0.85,
+    events: {
+      starCatch: true,
+      costReduction30: true,
+      boomReduction30: true,
+    },
+  });
+
+  assert.equal(formatStrategy(result.strategy), "222/11/21/B");
+});
+
+test("formats cached star-force strategies with current reachability rules", () => {
+  const strategy = [
+    { star: 15, nextStar: 16, mode: 1 },
+    { star: 16, nextStar: 17, mode: 1 },
+    { star: 17, nextStar: 18, mode: 1 },
+    { star: 18, nextStar: 19, mode: 1 },
+    { star: 19, nextStar: 20, mode: 1 },
+    { star: 20, nextStar: 21, mode: 1 },
+    { star: 21, nextStar: 22, mode: 4 },
+  ];
+
+  const displayStrategy = formatStarforceStrategyForSource(strategy, {
+    itemLevel: 250,
+    startStar: 21,
+    targetStar: 22,
+    events: {
+      starCatch: true,
+      costReduction30: true,
+      boomReduction30: true,
+    },
+  });
+
+  assert.equal(formatStrategy(displayStrategy), "***/**/*4");
 });
 
 test("saved profile costs report when available spares cannot meet the guarantee", () => {
@@ -287,6 +330,14 @@ test("saved profile costs include recursive recovery strategy for 22 to 23", () 
     result.strategy.map((row) => row.star),
     [15, 16, 17, 18, 19, 20, 21, 22],
   );
+  assert.deepEqual(
+    result.strategy.slice(0, 2).map((row) => ({ mode: row.mode, displayMode: row.displayMode })),
+    [
+      { mode: "1", displayMode: undefined },
+      { mode: "1", displayMode: undefined },
+    ],
+  );
+  assert.match(formatStrategy(result.strategy), /^\d{3}\/\d{2}\/\d{2}\/B$/);
 });
 
 test("calculates star-force percentile costs for saved upgrade profiles with spare inventory", () => {

@@ -19,7 +19,7 @@ function formatGroup(rows, stars) {
     return null;
   }
 
-  return matchingRows.map((row) => formatMode(row.mode)).join("");
+  return matchingRows.map((row) => formatMode(row.displayMode ?? row.mode)).join("");
 }
 
 export function formatStrategy(strategy = [], { showBaseSuffix = true } = {}) {
@@ -29,7 +29,7 @@ export function formatStrategy(strategy = [], { showBaseSuffix = true } = {}) {
   const extraParts = rows
     .filter((row) => !groupedStars.has(row.star))
     .filter((row) => showBaseSuffix || !isBaseMode(row.mode))
-    .map((row) => formatMode(row.mode));
+    .map((row) => formatMode(row.displayMode ?? row.mode));
 
   return [...groupedParts, extraParts.join("")].filter(Boolean).join("/");
 }

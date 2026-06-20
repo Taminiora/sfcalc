@@ -36,6 +36,22 @@ test("formats partial and base-only strategies", () => {
   );
 });
 
+test("formats unreachable recovery modes as placeholders", () => {
+  assert.equal(
+    formatStrategy([
+      { star: 15, mode: "1", displayMode: "*" },
+      { star: 16, mode: "1", displayMode: "*" },
+      { star: 17, mode: "4" },
+      { star: 18, mode: "4" },
+      { star: 19, mode: "4" },
+      { star: 20, mode: "4" },
+      { star: 21, mode: "4" },
+      { star: 22, mode: "Base" },
+    ]),
+    "**4/44/44/B",
+  );
+});
+
 test("can hide trailing base-only high-star taps for compact table display", () => {
   assert.equal(
     formatStrategy(

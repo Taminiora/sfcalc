@@ -504,6 +504,16 @@ tr:last-child td {
   display: none !important;
 }
 
+.visually-hidden {
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
 .planner-shell {
   max-width: 1320px;
   margin: 0 auto;
@@ -965,13 +975,13 @@ tr:last-child td {
 
 .saved-upgrades-table th:nth-child(3),
 .saved-upgrades-table td:nth-child(3),
-.saved-upgrades-table th:nth-child(5),
-.saved-upgrades-table td:nth-child(5) {
+.saved-upgrades-table th:nth-child(4),
+.saved-upgrades-table td:nth-child(4) {
   width: 14%;
 }
 
-.saved-upgrades-table th:nth-child(4),
-.saved-upgrades-table td:nth-child(4) {
+.saved-upgrades-table th:nth-child(5),
+.saved-upgrades-table td:nth-child(5) {
   width: 9%;
 }
 
@@ -982,7 +992,12 @@ tr:last-child td {
 
 .saved-upgrades-table th:nth-child(7),
 .saved-upgrades-table td:nth-child(7) {
-  width: 15%;
+  width: 11%;
+}
+
+.saved-upgrades-table th:nth-child(8),
+.saved-upgrades-table td:nth-child(8) {
+  width: 4%;
 }
 
 .saved-upgrades-table .strategy-cell {
@@ -1018,13 +1033,39 @@ tr:last-child td {
 
 .saved-upgrades-table .table-actions {
   align-items: stretch;
-  display: grid;
-  gap: 6px;
+  display: block;
 }
 
 .saved-upgrades-table .table-actions button {
   min-height: 34px;
   padding: 6px 8px;
+}
+
+.action-stack {
+  display: grid;
+  gap: 6px;
+}
+
+.icon-danger-button {
+  background: transparent !important;
+  border: 0 !important;
+  color: var(--danger) !important;
+  font-size: 1.1rem !important;
+  line-height: 1;
+  min-width: 34px;
+  padding: 0 !important;
+  width: 34px;
+}
+
+.delete-action-heading,
+.delete-action-cell {
+  padding-left: 0 !important;
+  padding-right: 4px !important;
+  text-align: center !important;
+}
+
+.icon-danger-button:hover {
+  color: var(--text-main) !important;
 }
 
 .stat-table {
