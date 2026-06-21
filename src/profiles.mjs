@@ -42,7 +42,6 @@ export const DEFAULT_STAT_ROWS = Object.freeze([
 const DEFAULT_STARFORCE_EVENTS = Object.freeze({
   starCatch: true,
   costReduction30: true,
-  fullCostReduction30: false,
   boomReduction30: true,
 });
 

@@ -41,9 +41,7 @@ function roundToHundreds(value) {
 }
 
 export function getDiscountedModeCost({ baseCost, costMultiplier }) {
-  const discountedBaseCost = baseCost * COST_REDUCTION_MULTIPLIER;
-  const fullPriceModeSurcharge = baseCost * (costMultiplier - 1);
-  return roundToHundreds(discountedBaseCost + fullPriceModeSurcharge);
+  return roundToHundreds(baseCost * costMultiplier * COST_REDUCTION_MULTIPLIER);
 }
 
 function getTier(star, id) {

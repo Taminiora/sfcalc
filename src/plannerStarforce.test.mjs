@@ -22,7 +22,7 @@ test("computes required spares as a probability guarantee", () => {
   assert.equal(findRequiredSpares(distribution, 0.9).requiredSpares, 1);
 });
 
-test("copium full cost reduction discounts mode surcharge and supersedes base reduction", () => {
+test("30% cost reduction discounts the full mode cost", () => {
   const baseCost = getBaseCost(250, 15);
   const result = optimizeStarforce({
     itemLevel: 250,
@@ -34,7 +34,6 @@ test("copium full cost reduction discounts mode surcharge and supersedes base re
     events: {
       starCatch: false,
       costReduction30: true,
-      fullCostReduction30: true,
       boomReduction30: false,
     },
   });
@@ -111,7 +110,7 @@ test("chooses benchmark strategies from the spare-cost frontier", () => {
   });
 
   assert.equal(result.meetsBenchmark, true);
-  assert.equal(formatStrategy(result.strategy), "444/34/44");
+  assert.equal(formatStrategy(result.strategy), "444/44/44");
 });
 
 test("falls back to the least conservative strategy when it cannot compete", () => {

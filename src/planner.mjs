@@ -79,7 +79,6 @@ const profileFields = {
   hitProbability: document.querySelector("#profile-hit-probability"),
   starCatch: document.querySelector("#profile-event-star-catch"),
   costReduction30: document.querySelector("#profile-event-cost-reduction"),
-  fullCostReduction30: document.querySelector("#profile-event-full-cost-reduction"),
   boomReduction30: document.querySelector("#profile-event-boom-reduction"),
   cubingItemType: document.querySelector("#profile-cubing-item-type"),
   cubingItemLevel: document.querySelector("#profile-cubing-item-level"),
@@ -99,7 +98,6 @@ const optimizerFields = {
   hitProbability: document.querySelector("#optimizer-hit-probability"),
   starCatch: document.querySelector("#event-star-catch"),
   costReduction30: document.querySelector("#event-cost-reduction"),
-  fullCostReduction30: document.querySelector("#event-full-cost-reduction"),
   boomReduction30: document.querySelector("#event-boom-reduction"),
 };
 
@@ -335,7 +333,6 @@ function getProfileEvents() {
   return {
     starCatch: profileFields.starCatch.checked,
     costReduction30: profileFields.costReduction30.checked,
-    fullCostReduction30: profileFields.fullCostReduction30.checked,
     boomReduction30: profileFields.boomReduction30.checked,
   };
 }
@@ -344,7 +341,6 @@ function getOptimizerEvents() {
   return {
     starCatch: optimizerFields.starCatch.checked,
     costReduction30: optimizerFields.costReduction30.checked,
-    fullCostReduction30: optimizerFields.fullCostReduction30.checked,
     boomReduction30: optimizerFields.boomReduction30.checked,
   };
 }
@@ -853,7 +849,6 @@ function clearProfileForm() {
   profileFields.hitProbability.value = "85";
   profileFields.starCatch.checked = true;
   profileFields.costReduction30.checked = true;
-  profileFields.fullCostReduction30.checked = false;
   profileFields.boomReduction30.checked = true;
   profileFields.cubingItemType.value = "weapon";
   profileFields.cubingItemLevel.value = "250";
@@ -886,8 +881,9 @@ function fillProfileForm(profile) {
     ? profile.source.hitProbability * 100
     : 85;
   profileFields.starCatch.checked = Boolean(profile.source?.events?.starCatch);
-  profileFields.costReduction30.checked = Boolean(profile.source?.events?.costReduction30);
-  profileFields.fullCostReduction30.checked = Boolean(profile.source?.events?.fullCostReduction30);
+  profileFields.costReduction30.checked = Boolean(
+    profile.source?.events?.costReduction30 || profile.source?.events?.fullCostReduction30,
+  );
   profileFields.boomReduction30.checked = Boolean(profile.source?.events?.boomReduction30);
   profileFields.cubingItemType.value = normalizeCubingItemTypeForForm(profile.source?.itemType ?? "weapon");
   profileFields.cubingItemLevel.value = profile.source?.itemLevel ?? 250;

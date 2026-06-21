@@ -69,12 +69,12 @@ function getTier(star, modeId) {
 }
 
 function getAdjustedTap({ itemLevel, star, tier, events }) {
-  const baseCost = getBaseCost(itemLevel, star);
-  const modeSurcharge = baseCost * (tier.costMultiplier - 1);
-  const undiscountedTapCost = baseCost + modeSurcharge;
-  const tapCost = events.fullCostReduction30
-    ? roundToHundreds(undiscountedTapCost * COST_REDUCTION_MULTIPLIER)
-    : roundToHundreds((events.costReduction30 ? baseCost * COST_REDUCTION_MULTIPLIER : baseCost) + modeSurcharge);
+  const undiscountedTapCost = getBaseCost(itemLevel, star) * tier.costMultiplier;
+  const tapCost = roundToHundreds(
+    events.costReduction30
+      ? undiscountedTapCost * COST_REDUCTION_MULTIPLIER
+      : undiscountedTapCost,
+  );
   const successRate = tier.successRate * (events.starCatch && star >= 12 ? STAR_CATCH_MULTIPLIER : 1);
   const boomReduction =
     events.boomReduction30 && star >= MODE_START_STAR && star <= MODE_END_STAR
@@ -563,8 +563,7 @@ function validateHitProbability(hitProbability) {
 function normalizeEvents(events) {
   return {
     starCatch: Boolean(events?.starCatch),
-    costReduction30: Boolean(events?.costReduction30),
-    fullCostReduction30: Boolean(events?.fullCostReduction30),
+    costReduction30: Boolean(events?.costReduction30 || events?.fullCostReduction30),
     boomReduction30: Boolean(events?.boomReduction30),
   };
 }
@@ -836,7 +835,6 @@ function getOptimizeStarforceCacheKey({
     hitProbability,
     normalizedEvents.starCatch,
     normalizedEvents.costReduction30,
-    normalizedEvents.fullCostReduction30,
     normalizedEvents.boomReduction30,
   ]);
 }

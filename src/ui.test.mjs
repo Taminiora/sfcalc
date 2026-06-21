@@ -196,20 +196,20 @@ test("planner defaults SF event checkboxes to enabled", () => {
 
   assert.match(html, /id="profile-event-star-catch" checked type="checkbox"/);
   assert.match(html, /id="profile-event-cost-reduction" checked type="checkbox"/);
-  assert.match(html, /id="profile-event-full-cost-reduction" type="checkbox"/);
-  assert.equal(html.includes('id="profile-event-full-cost-reduction" checked'), false);
   assert.match(html, /id="profile-event-boom-reduction" checked type="checkbox"/);
   assert.match(html, /id="event-star-catch" checked type="checkbox"/);
   assert.match(html, /id="event-cost-reduction" checked type="checkbox"/);
-  assert.match(html, /id="event-full-cost-reduction" type="checkbox"/);
-  assert.equal(html.includes('id="event-full-cost-reduction" checked'), false);
   assert.match(html, /id="event-boom-reduction" checked type="checkbox"/);
+  assert.equal(html.includes("30% cost reduction"), true);
+  assert.equal(html.includes("30% base-cost reduction"), false);
+  assert.equal(html.includes("Copium 30% full cost reduction"), false);
+  assert.equal(html.includes("profile-event-full-cost-reduction"), false);
+  assert.equal(html.includes("event-full-cost-reduction"), false);
   assert.equal(script.includes("profileFields.starCatch.checked = true"), true);
   assert.equal(script.includes("profileFields.costReduction30.checked = true"), true);
-  assert.equal(script.includes("profileFields.fullCostReduction30.checked = false"), true);
   assert.equal(script.includes("profileFields.boomReduction30.checked = true"), true);
-  assert.equal(script.includes("fullCostReduction30: profileFields.fullCostReduction30.checked"), true);
-  assert.equal(script.includes("fullCostReduction30: optimizerFields.fullCostReduction30.checked"), true);
+  assert.equal(script.includes("fullCostReduction30: profileFields.fullCostReduction30.checked"), false);
+  assert.equal(script.includes("fullCostReduction30: optimizerFields.fullCostReduction30.checked"), false);
 });
 
 test("planner collapses additional stat changes and takes spares on saved upgrades only", () => {
