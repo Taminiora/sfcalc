@@ -1,10 +1,10 @@
 import { getBaseCost, TIER_TABLE } from "./starforce.mjs";
+import { getEventAdjustedTapCost } from "./starforceCostRules.mjs";
 
 const START_STAR = 15;
 const END_STAR = 22;
 const STAR_CATCH_MULTIPLIER = 1.05;
 const BOOM_REDUCTION_MULTIPLIER = 0.7;
-const COST_REDUCTION_MULTIPLIER = 0.7;
 
 const BASE_PROBABILITIES = {
   0: [0.95, 0],
@@ -36,12 +36,13 @@ const RESTORE_LEVEL = {
 
 const MODES = ["1", "2", "3", "4"];
 
-function roundToHundreds(value) {
-  return 100 * Math.round(value / 100);
-}
-
-export function getDiscountedModeCost({ baseCost, costMultiplier }) {
-  return roundToHundreds(baseCost * costMultiplier * COST_REDUCTION_MULTIPLIER);
+export function getDiscountedModeCost({ baseCost, star, costMultiplier }) {
+  return getEventAdjustedTapCost({
+    baseCost,
+    star,
+    costMultiplier,
+    costReduction30: true,
+  });
 }
 
 function getTier(star, id) {
@@ -84,6 +85,7 @@ function evaluatePolicy({ ids, itemLevel }) {
       (1 - successRate) * tier.boomGivenNoSuccess * BOOM_REDUCTION_MULTIPLIER;
     const tapCost = getDiscountedModeCost({
       baseCost: getBaseCost(itemLevel, star),
+      star,
       costMultiplier: tier.costMultiplier,
     });
     const restoreStar = RESTORE_LEVEL[star];

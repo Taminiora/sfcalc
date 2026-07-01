@@ -29,7 +29,7 @@ import {
   calculateStarforceProfileCosts,
   formatStarforceStrategyForSource,
   optimizeStarforce,
-} from "./plannerStarforce.mjs?v=20260619-reachable-strategy-display";
+} from "./plannerStarforce.mjs";
 import { formatStrategy } from "./strategyFormat.mjs?v=20260617-strategy-display";
 
 const tabs = document.querySelectorAll("[data-tab]");

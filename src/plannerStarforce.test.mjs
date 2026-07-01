@@ -9,6 +9,7 @@ import {
   optimizeStarforce,
 } from "./plannerStarforce.mjs";
 import { getBaseCost } from "./starforce.mjs";
+import { getAdjustedTap, getTier, roundToHundreds } from "./sfTapMath.mjs";
 import { formatStrategy } from "./strategyFormat.mjs";
 
 test("computes required spares as a probability guarantee", () => {
@@ -22,7 +23,7 @@ test("computes required spares as a probability guarantee", () => {
   assert.equal(findRequiredSpares(distribution, 0.9).requiredSpares, 1);
 });
 
-test("30% cost reduction discounts the full mode cost", () => {
+test("30% cost reduction leaves old safeguard surcharge undiscounted", () => {
   const baseCost = getBaseCost(250, 15);
   const result = optimizeStarforce({
     itemLevel: 250,
@@ -39,8 +40,41 @@ test("30% cost reduction discounts the full mode cost", () => {
   });
 
   assert.equal(formatStrategy(result.strategy), "4");
-  assert.equal(result.strategy[0].tapCost, 100 * Math.round((baseCost * 3 * 0.7) / 100));
-  assert.notEqual(result.strategy[0].tapCost, 100 * Math.round((baseCost * 2.7) / 100));
+  assert.equal(result.strategy[0].tapCost, roundToHundreds(baseCost * 0.7 + baseCost * 2));
+  assert.notEqual(result.strategy[0].tapCost, roundToHundreds(baseCost * 3 * 0.7));
+
+  for (const star of [16, 17]) {
+    const starBaseCost = getBaseCost(250, star);
+    const tier = getTier(star, "4");
+    const tap = getAdjustedTap({
+      itemLevel: 250,
+      star,
+      tier,
+      events: {
+        starCatch: false,
+        costReduction30: true,
+        boomReduction30: false,
+      },
+    });
+    assert.equal(tap.tapCost, roundToHundreds(starBaseCost * 0.7 + starBaseCost * 2));
+  }
+});
+
+test("30% cost reduction keeps regular full multiplier discount after old safeguard stars", () => {
+  const baseCost = getBaseCost(250, 18);
+  const tier = getTier(18, "4");
+  const tap = getAdjustedTap({
+    itemLevel: 250,
+    star: 18,
+    tier,
+    events: {
+      starCatch: false,
+      costReduction30: true,
+      boomReduction30: false,
+    },
+  });
+
+  assert.equal(tap.tapCost, roundToHundreds(baseCost * tier.costMultiplier * 0.7));
 });
 
 test("optimizes a 15 to 22 strategy against a benchmark", () => {

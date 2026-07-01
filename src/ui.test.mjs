@@ -29,10 +29,11 @@ test("planner uses stable static asset URLs for production hosting", () => {
   const script = readFileSync(new URL("./planner.mjs", import.meta.url), "utf8");
 
   assert.match(html, /href="\.\/src\/styles\.css\?v=\d{8}-[a-z0-9-]+"/);
-  assert.match(html, /src="\.\/src\/planner\.mjs\?v=\d{8}-[a-z0-9-]+"/);
+  assert.match(html, /src="\.\/src\/planner\.mjs"/);
   assert.doesNotMatch(html, /\?(?:fresh|reload)=/);
   assert.equal(script.includes('from "./cubing.mjs?v=20260617-cd-hat-options"'), true);
   assert.equal(script.includes('from "./strategyFormat.mjs?v=20260617-strategy-display"'), true);
+  assert.equal(script.includes('from "./plannerStarforce.mjs"'), true);
   assert.doesNotMatch(script, /from "\.\/[^"]+\?(?:fresh|reload)=/);
 });
 
