@@ -119,6 +119,8 @@ test("planner save upgrade form supports star-force and cubing modes", () => {
   assert.equal(html.includes("profile-cube-type"), true);
   assert.equal(html.includes("profile-cube-sale"), true);
   assert.equal(html.includes("Cube sale"), true);
+  assert.equal(html.includes("Cube sale (25% off cube cost)"), true);
+  assert.equal(html.includes("Cube sale (30% off cube cost)"), false);
   assert.equal(html.includes("profile-cubing-target"), true);
   const cubingItemTypeSelect = html.match(
     /<select id="profile-cubing-item-type">([\s\S]*?)<\/select>/,
@@ -157,7 +159,7 @@ test("planner save upgrade form supports star-force and cubing modes", () => {
   assert.equal(script.includes('renderCubingTargetOptions("percAtt+39")'), true);
   assert.equal(cubing.includes("Double prime main stat"), false);
   assert.equal(cubing.includes("Triple prime main stat"), false);
-  assert.equal(cubing.includes("CUBE_SALE_DISCOUNT = 0.3"), true);
+  assert.equal(cubing.includes("CUBE_SALE_DISCOUNT = 0.25"), true);
   assert.equal(script.includes('type: isCubing ? "cubing" : "starforce"'), true);
 });
 

@@ -8,7 +8,7 @@ const CUBE_COSTS = Object.freeze({
   black: 22_000_000,
 });
 
-const CUBE_SALE_DISCOUNT = 0.3;
+const CUBE_SALE_DISCOUNT = 0.25;
 
 const TIER_TO_LABEL = Object.freeze({
   0: "rare",

@@ -145,8 +145,8 @@ test("applies cube sale to cube cost but not reveal cost", () => {
   });
 
   assert.equal(saleCosts.cubeSale, true);
-  assert.equal(saleCosts.cubeSaleDiscount, 0.3);
-  assert.equal(saleCosts.cubeCost, normalCosts.cubeCost * 0.7);
+  assert.equal(saleCosts.cubeSaleDiscount, 0.25);
+  assert.equal(saleCosts.cubeCost, normalCosts.cubeCost * 0.75);
   assert.equal(saleCosts.revealCost, normalCosts.revealCost);
   assert.equal(saleCosts.costPerCube, saleCosts.cubeCost + saleCosts.revealCost);
   assert.equal(saleCosts.expectedCost, saleCosts.costPerCube * saleCosts.meanCubes);
