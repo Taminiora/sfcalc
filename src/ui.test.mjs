@@ -364,6 +364,16 @@ test("planner saved upgrades can sort by efficiency and costs", () => {
   assert.match(css, /\.sort-indicator\s*\{[\s\S]*?font-size: 0\.68rem/s);
 });
 
+test("planner formats very large meso values with two-decimal t and q suffixes", () => {
+  const script = readFileSync(new URL("./planner.mjs", import.meta.url), "utf8");
+
+  assert.equal(script.includes("function formatFixedCompactUnit(value, divisor, suffix)"), true);
+  assert.equal(script.includes("toFixed(2)"), true);
+  assert.equal(script.includes('return formatFixedCompactUnit(value, 1_000_000_000_000_000, "q");'), true);
+  assert.equal(script.includes('return formatFixedCompactUnit(value, 1_000_000_000_000, "t");'), true);
+  assert.equal(script.includes('return `${(value / 1_000_000_000).toFixed(2)}b`;'), true);
+});
+
 test("planner saved upgrade actions stack clone and edit with compact delete", () => {
   const html = readFileSync(new URL("../planner.html", import.meta.url), "utf8");
   const script = readFileSync(new URL("./planner.mjs", import.meta.url), "utf8");

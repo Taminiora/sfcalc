@@ -199,8 +199,18 @@ function formatIntegerInput(input) {
   input.value = digits ? formatInteger(Number(digits)) : "";
 }
 
+function formatFixedCompactUnit(value, divisor, suffix) {
+  return `${(value / divisor).toFixed(2)}${suffix}`;
+}
+
 function formatCompactMeso(value) {
   const absValue = Math.abs(value);
+  if (absValue >= 1_000_000_000_000_000) {
+    return formatFixedCompactUnit(value, 1_000_000_000_000_000, "q");
+  }
+  if (absValue >= 1_000_000_000_000) {
+    return formatFixedCompactUnit(value, 1_000_000_000_000, "t");
+  }
   if (absValue >= 1_000_000_000) {
     return `${(value / 1_000_000_000).toFixed(2)}b`;
   }
