@@ -275,6 +275,27 @@ test("saved profile costs report when available spares cannot meet the guarantee
   assert.ok(result.requiredSpares > 0);
 });
 
+test("spare-gated profile costs fall back to the most conservative strategy", () => {
+  const result = calculateStarforceProfileCosts({
+    itemLevel: 160,
+    startStar: 23,
+    targetStar: 24,
+    spareCount: 0,
+    hitProbability: 0.85,
+    events: {
+      starCatch: true,
+      costReduction30: true,
+      boomReduction30: true,
+    },
+  });
+
+  assert.equal(result.availableSpares, 0);
+  assert.equal(result.guaranteeMet, false);
+  assert.equal(formatStrategy(result.strategy), "**4/44/44/BB");
+  assert.equal(result.requiredSpares, 8);
+  assert.ok(result.expectedBooms < 4);
+});
+
 test("supports star-force targets up to 25", () => {
   const result = optimizeStarforce({
     itemLevel: 250,

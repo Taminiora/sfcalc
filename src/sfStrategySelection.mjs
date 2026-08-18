@@ -78,13 +78,24 @@ function getPolicyBoomResult({ policy, itemLevel, startStar, targetStar, spareCo
   };
 }
 
-export function getCheapestPolicy({ itemLevel, startStar, targetStar, hitProbability, events }) {
+export function getCheapestPolicy({
+  itemLevel,
+  startStar,
+  targetStar,
+  hitProbability,
+  events,
+  replacementCostPerBoom = 0,
+}) {
   const [candidate] = getPrunedPolicyCandidates({
     itemLevel,
     startStar,
     targetStar,
     events,
-  }).sort((left, right) => left.expectedMeso - right.expectedMeso);
+  }).sort(
+    (left, right) =>
+      getPolicyTotalCost(left, replacementCostPerBoom) -
+      getPolicyTotalCost(right, replacementCostPerBoom),
+  );
 
   return getPolicyBoomResult({
     policy: candidate,
@@ -103,6 +114,7 @@ export function getBestPolicyForBenchmark({
   benchmarkFdPerMeso,
   hitProbability,
   events,
+  replacementCostPerBoom = 0,
 }) {
   const candidates = getSpareCostFrontier(
     getPrunedPolicyCandidates({
@@ -113,9 +125,12 @@ export function getBestPolicyForBenchmark({
     }),
   );
   const [leastConservative] = [...candidates].sort(
-    (left, right) => left.expectedMeso - right.expectedMeso,
+    (left, right) =>
+      getPolicyTotalCost(left, replacementCostPerBoom) -
+      getPolicyTotalCost(right, replacementCostPerBoom),
   );
-  const leastConservativeFdPerMeso = sfFdGain / leastConservative.expectedMeso;
+  const leastConservativeCost = getPolicyTotalCost(leastConservative, replacementCostPerBoom);
+  const leastConservativeFdPerMeso = sfFdGain / leastConservativeCost;
 
   if (leastConservativeFdPerMeso + 1e-18 < benchmarkFdPerMeso) {
     return getPolicyBoomResult({
@@ -128,11 +143,16 @@ export function getBestPolicyForBenchmark({
   }
 
   const [bestConservative] = candidates
-    .filter((candidate) => sfFdGain / candidate.expectedMeso + 1e-18 >= benchmarkFdPerMeso)
+    .filter(
+      (candidate) =>
+        sfFdGain / getPolicyTotalCost(candidate, replacementCostPerBoom) + 1e-18 >=
+        benchmarkFdPerMeso,
+    )
     .sort(
       (left, right) =>
         left.expectedBooms - right.expectedBooms ||
-        left.expectedMeso - right.expectedMeso,
+        getPolicyTotalCost(left, replacementCostPerBoom) -
+          getPolicyTotalCost(right, replacementCostPerBoom),
     );
 
   return getPolicyBoomResult({
@@ -151,13 +171,18 @@ export function getBestPolicyForSpareCount({
   spareCount,
   hitProbability,
   events,
+  replacementCostPerBoom = 0,
 }) {
   const candidates = getExhaustivePolicyCandidates({
     itemLevel,
     startStar,
     targetStar,
     events,
-  }).sort((left, right) => left.expectedMeso - right.expectedMeso);
+  }).sort(
+    (left, right) =>
+      getPolicyTotalCost(left, replacementCostPerBoom) -
+      getPolicyTotalCost(right, replacementCostPerBoom),
+  );
   let bestFallback = null;
 
   for (const candidate of candidates) {
@@ -190,7 +215,10 @@ export function getBestPolicyForSpareCount({
       !bestFallback ||
       candidateResult.achievedProbability > bestFallback.achievedProbability + 1e-12 ||
       (Math.abs(candidateResult.achievedProbability - bestFallback.achievedProbability) < 1e-12 &&
-        candidateResult.expectedMeso < bestFallback.expectedMeso)
+        (candidateResult.expectedBooms < bestFallback.expectedBooms - 1e-12 ||
+          (Math.abs(candidateResult.expectedBooms - bestFallback.expectedBooms) < 1e-12 &&
+            getPolicyTotalCost(candidateResult, replacementCostPerBoom) <
+              getPolicyTotalCost(bestFallback, replacementCostPerBoom))))
     ) {
       bestFallback = candidateResult;
     }

@@ -3,6 +3,11 @@ import {
   getCubingStrategyOptions,
 } from "./cubing.mjs?v=20260617-cd-hat-options";
 import {
+  ASTRA_REPLACEMENT_COST as ASTRA_SECONDARY_REPLACEMENT_COST,
+  calculateAstraStarforceProfileCosts,
+  optimizeAstraStarforce,
+} from "./astraStarforce.mjs";
+import {
   CLASS_NAMES,
   parseScouterFinalDamageTable,
 } from "./statEquivalenceParser.mjs";
@@ -16,12 +21,15 @@ import {
   expandClassStatGains,
   getRecommendedProfiles,
   loadProfiles,
+  loadProfilePresets,
   loadStatEquivalence,
   loadStatEquivalencePresets,
   saveProfiles,
+  saveProfilePresets,
   saveStatEquivalence,
   saveStatEquivalencePresets,
   validateProfileInput,
+  validateProfilePresetInput,
   validateStatEquivalenceInput,
   validateStatEquivalencePresetInput,
 } from "./profiles.mjs";
@@ -52,7 +60,11 @@ const profileEmpty = document.querySelector("#profile-empty");
 const profileMessage = document.querySelector("#profile-message");
 const profileReset = document.querySelector("#profile-reset");
 const profileClearAll = document.querySelector("#profile-clear-all");
-const profileRestoreRecommended = document.querySelector("#profile-restore-recommended");
+const profilePresetSelect = document.querySelector("#profile-preset-select");
+const profilePresetName = document.querySelector("#profile-preset-name");
+const profilePresetSave = document.querySelector("#profile-preset-save");
+const profilePresetLoad = document.querySelector("#profile-preset-load");
+const profilePresetDelete = document.querySelector("#profile-preset-delete");
 const profileSortButtons = document.querySelectorAll("[data-profile-sort]");
 const profileSfAutoGains = document.querySelector("#profile-sf-auto-gains");
 const profileStatGains = document.querySelector("#profile-stat-gains");
@@ -72,9 +84,12 @@ const profileFields = {
   sfFields: document.querySelector("#profile-sf-fields"),
   cubingFields: document.querySelector("#profile-cubing-fields"),
   itemType: document.querySelector("#profile-item-type"),
+  astraOption: document.querySelector("#profile-astra-option"),
+  astraSecondary: document.querySelector("#profile-astra-secondary"),
   itemLevel: document.querySelector("#profile-item-level"),
   startStar: document.querySelector("#profile-start-star"),
   targetStar: document.querySelector("#profile-target-star"),
+  spareField: document.querySelector("#profile-spare-field"),
   spareCount: document.querySelector("#profile-spare-count"),
   hitProbability: document.querySelector("#profile-hit-probability"),
   starCatch: document.querySelector("#profile-event-star-catch"),
@@ -92,6 +107,8 @@ const profileFields = {
 
 const optimizerFields = {
   itemType: document.querySelector("#optimizer-item-type"),
+  astraOption: document.querySelector("#optimizer-astra-option"),
+  astraSecondary: document.querySelector("#optimizer-astra-secondary"),
   itemLevel: document.querySelector("#optimizer-item-level"),
   startStar: document.querySelector("#optimizer-start-star"),
   targetStar: document.querySelector("#optimizer-target-star"),
@@ -119,10 +136,12 @@ const THEME_STORAGE_KEY = "sfcalc.enhancementPlanner.theme.v1";
 let profiles = loadProfiles();
 let statEquivalence = loadStatEquivalence();
 let statEquivalencePresets = loadStatEquivalencePresets();
+let profilePresets = loadProfilePresets();
 let profileSort = { key: "fdPerMesoP95", direction: "desc" };
 saveProfiles(undefined, profiles);
 saveStatEquivalence(undefined, statEquivalence);
 saveStatEquivalencePresets(undefined, statEquivalencePresets);
+saveProfilePresets(undefined, profilePresets);
 initializeTheme();
 
 function getStoredTheme() {
@@ -235,6 +254,10 @@ function setMessage(element, message) {
   element.textContent = message;
 }
 
+function cloneProfiles(profileList) {
+  return JSON.parse(JSON.stringify(profileList));
+}
+
 function readStatRows() {
   return [...statRows.querySelectorAll("tr")].map((row) => ({
     stat: row.dataset.stat,
@@ -322,10 +345,50 @@ function normalizeCubingItemTypeForForm(itemType) {
   return itemType === "armor" ? "top" : itemType;
 }
 
+function isAstraSecondaryEnabled(fields) {
+  return fields.itemType.value === "secondary" && fields.astraSecondary.checked;
+}
+
+function getStarforceSourceFromFields(fields) {
+  const isAstraSecondary = isAstraSecondaryEnabled(fields);
+  return {
+    itemType: fields.itemType.value,
+    itemLevel: isAstraSecondary ? 200 : Number(fields.itemLevel.value),
+    startStar: Number(fields.startStar.value),
+    targetStar: Number(fields.targetStar.value),
+    ...(isAstraSecondary ? { isAstraSecondary: true } : {}),
+  };
+}
+
+function getStarforceReplacementCost(source) {
+  return source.isAstraSecondary ? ASTRA_SECONDARY_REPLACEMENT_COST : 0;
+}
+
+function syncAstraSecondaryControls(fields) {
+  const isSecondary = fields.itemType.value === "secondary";
+  fields.astraOption.classList.toggle("hidden", !isSecondary);
+  fields.astraSecondary.disabled = !isSecondary;
+  if (!isSecondary) {
+    fields.astraSecondary.checked = false;
+  }
+  const isAstraSecondary = fields.astraSecondary.checked;
+  fields.itemLevel.disabled = isAstraSecondary;
+  if (fields.spareCount) {
+    fields.spareCount.disabled = isAstraSecondary;
+  }
+  if (fields.spareField) {
+    fields.spareField.classList.toggle("hidden", isAstraSecondary);
+  }
+  if (isAstraSecondary) {
+    fields.itemLevel.value = "200";
+  }
+}
+
 function renderProfileMode() {
   const isCubing = profileFields.upgradeType.value === "cubing";
   profileFields.sfFields.classList.toggle("hidden", isCubing);
   profileFields.cubingFields.classList.toggle("hidden", !isCubing);
+  syncAstraSecondaryControls(profileFields);
   renderProfileStarforceGains();
 }
 
@@ -379,6 +442,10 @@ function formatItemTypeName(itemType) {
 function getDefaultProfileName({ isCubing, source }) {
   if (isCubing) {
     return `${formatItemTypeName(source.itemType)}: ${source.targetLabel ?? source.target}`;
+  }
+
+  if (source.isAstraSecondary) {
+    return `${source.startStar}★ → ${source.targetStar}★ Astra secondary`;
   }
 
   return `${source.startStar}★ → ${source.targetStar}★ level ${source.itemLevel} ${source.itemType} (${formatSpareCount(source.spareCount)})`;
@@ -500,21 +567,13 @@ function renderProfileStarforceGains() {
     return;
   }
 
-  renderStarforceGainSummary(profileSfAutoGains, {
-    itemType: profileFields.itemType.value,
-    itemLevel: Number(profileFields.itemLevel.value),
-    startStar: Number(profileFields.startStar.value),
-    targetStar: Number(profileFields.targetStar.value),
-  });
+  syncAstraSecondaryControls(profileFields);
+  renderStarforceGainSummary(profileSfAutoGains, getStarforceSourceFromFields(profileFields));
 }
 
 function renderOptimizerStarforceGains() {
-  renderStarforceGainSummary(optimizerSfAutoGains, {
-    itemType: optimizerFields.itemType.value,
-    itemLevel: Number(optimizerFields.itemLevel.value),
-    startStar: Number(optimizerFields.startStar.value),
-    targetStar: Number(optimizerFields.targetStar.value),
-  });
+  syncAstraSecondaryControls(optimizerFields);
+  renderStarforceGainSummary(optimizerSfAutoGains, getStarforceSourceFromFields(optimizerFields));
 }
 
 function getProfileMetrics() {
@@ -602,7 +661,7 @@ function formatSavedStrategy(profile) {
   return formatStrategy(
     formatStarforceStrategyForSource(profile.source?.percentileCosts?.strategy ?? [], profile.source),
     {
-    showBaseSuffix: false,
+      showBaseSuffix: false,
     },
   ) || "-";
 }
@@ -622,7 +681,7 @@ function formatSavedExpected(profile) {
     `;
   }
 
-  const expectedMeso = Number(costs.expectedMeso ?? profile.p95Cost);
+  const expectedMeso = Number(costs.expectedTotalCost ?? costs.expectedMeso ?? profile.p95Cost);
   const expectedBooms = Number(costs.expectedBooms);
   if (!Number.isFinite(expectedMeso)) {
     return "-";
@@ -632,6 +691,10 @@ function formatSavedExpected(profile) {
     <strong title="${formatInteger(expectedMeso)}">${formatCompactMeso(expectedMeso)}</strong>
     <span class="row-note">${Number.isFinite(expectedBooms) ? expectedBooms.toFixed(2) : "-"} booms avg.</span>
   `;
+}
+
+function parseOptionalNumber(value) {
+  return value === null || value === undefined ? NaN : Number(value);
 }
 
 function formatSavedTargetOdds(profile) {
@@ -650,16 +713,31 @@ function formatSavedTargetOdds(profile) {
   }
 
   const targetOddsMeso = Number(costs.p85Cost ?? costs.expectedMeso ?? profile.p95Cost);
-  const requiredSpares = Number(costs.requiredSpares);
+  const requiredUnits = Number(costs.requiredBooms ?? costs.requiredSpares);
+  const availableUnits = parseOptionalNumber(costs.availableSpares);
+  const displayedUnits = Number.isFinite(availableUnits) ? availableUnits : requiredUnits;
   const achievedProbability = Number(costs.achievedProbability);
-  if (!Number.isFinite(targetOddsMeso) || !Number.isFinite(requiredSpares)) {
+  const targetProbability = Number(profile.source?.hitProbability ?? 0.85);
+  if (!Number.isFinite(targetOddsMeso) || !Number.isFinite(displayedUnits)) {
     return "-";
   }
+  const unitLabel = profile.source?.isAstraSecondary
+    ? displayedUnits === 1
+      ? "replacement boom"
+      : "replacement booms"
+    : displayedUnits === 1
+      ? "spare"
+      : "spares";
+  const belowTarget =
+    costs.guaranteeMet === false && Number.isFinite(targetProbability)
+      ? `<span class="row-note warning-note">below ${formatPercent(targetProbability)} target</span>`
+      : "";
 
   return `
     <strong title="${formatInteger(targetOddsMeso)}">${formatCompactMeso(targetOddsMeso)}</strong>
-    <span class="row-note">${formatInteger(requiredSpares)} spares</span>
+    <span class="row-note">${formatInteger(displayedUnits)} ${unitLabel}</span>
     <span class="row-note">${Number.isFinite(achievedProbability) ? formatPercent(achievedProbability) : "target"} odds</span>
+    ${belowTarget}
   `;
 }
 
@@ -721,6 +799,42 @@ function renderBenchmarkOptions() {
   }
 }
 
+function getProfilePresetOptions() {
+  return [
+    {
+      id: "recommended",
+      name: "Recommended",
+      profiles: getRecommendedProfiles(),
+      isBuiltIn: true,
+    },
+    ...profilePresets.map((preset) => ({
+      ...preset,
+      isBuiltIn: false,
+    })),
+  ];
+}
+
+function getSelectedProfilePreset() {
+  return getProfilePresetOptions().find((preset) => preset.id === profilePresetSelect.value);
+}
+
+function renderProfilePresets(selectedId = profilePresetSelect.value) {
+  const options = getProfilePresetOptions();
+  profilePresetSelect.replaceChildren(
+    ...options.map((preset) => {
+      const option = document.createElement("option");
+      option.value = preset.id;
+      option.textContent = preset.name;
+      return option;
+    }),
+  );
+
+  profilePresetSelect.value = options.some((preset) => preset.id === selectedId)
+    ? selectedId
+    : "recommended";
+  profilePresetDelete.disabled = profilePresetSelect.value === "recommended";
+}
+
 function renderEmptyOptimizer(message) {
   optimizerContext.textContent = message;
   Object.values(resultFields).forEach((field) => {
@@ -778,31 +892,50 @@ function renderOptimizer() {
 
     const selectedProfile =
       metricProfiles.find((profile) => profile.id === benchmarkProfileSelect.value) ?? metricProfiles[0];
-    const optimizerInput = {
-      itemType: optimizerFields.itemType.value,
-      itemLevel: Number(optimizerFields.itemLevel.value),
-      startStar: Number(optimizerFields.startStar.value),
-      targetStar: Number(optimizerFields.targetStar.value),
+    const optimizerSource = {
+      ...getStarforceSourceFromFields(optimizerFields),
       statGains: readStatGains(optimizerStatGains),
     };
-    const statBreakdown = calculateStarforceFdBreakdown(optimizerInput, statEquivalence);
-    const sfFdGain = calculateStarforceFdGain(optimizerInput, statEquivalence);
-    const result = optimizeStarforce({
-      itemLevel: Number(optimizerFields.itemLevel.value),
-      startStar: Number(optimizerFields.startStar.value),
-      targetStar: Number(optimizerFields.targetStar.value),
-      sfFdGain,
-      benchmarkFdPerMeso: selectedProfile.fdPerMesoP95,
-      hitProbability: Number(optimizerFields.hitProbability.value) / 100,
-      events: getOptimizerEvents(),
-    });
+    const statBreakdown = calculateStarforceFdBreakdown(optimizerSource, statEquivalence);
+    const sfFdGain = calculateStarforceFdGain(optimizerSource, statEquivalence);
+    const hitProbability = Number(optimizerFields.hitProbability.value) / 100;
+    const events = getOptimizerEvents();
+    const result = optimizerSource.isAstraSecondary
+      ? optimizeAstraStarforce({
+          startStar: optimizerSource.startStar,
+          targetStar: optimizerSource.targetStar,
+          sfFdGain,
+          benchmarkFdPerMeso: selectedProfile.fdPerMesoP95,
+          hitProbability,
+          events,
+        })
+      : optimizeStarforce({
+          itemLevel: optimizerSource.itemLevel,
+          startStar: optimizerSource.startStar,
+          targetStar: optimizerSource.targetStar,
+          sfFdGain,
+          benchmarkFdPerMeso: selectedProfile.fdPerMesoP95,
+          hitProbability,
+          events,
+          replacementCostPerBoom: getStarforceReplacementCost(optimizerSource),
+        });
+    const requiredUnits = Number(result.requiredBooms ?? result.requiredSpares);
+    const requiredUnitLabel = optimizerSource.isAstraSecondary
+      ? requiredUnits === 1
+        ? "replacement boom"
+        : "replacement booms"
+      : requiredUnits === 1
+        ? "spare"
+        : "spares";
 
     setMessage(optimizerMessage, "");
     optimizerContext.textContent = result.meetsBenchmark
-      ? `Clears ${selectedProfile.name} at target odds. Keep ${formatInteger(result.requiredSpares)} spares for ${formatPercent(result.achievedProbability)} hit odds with this strategy.`
+      ? `Clears ${selectedProfile.name} at target odds. Plan for ${formatInteger(requiredUnits)} ${requiredUnitLabel} for ${formatPercent(result.achievedProbability)} hit odds with this strategy.`
       : `Even the least conservative strategy cannot compete with ${selectedProfile.name} benchmark FD/meso.`;
     resultFields.strategy.textContent = formatStrategy(result.strategy);
-    resultFields.spares.textContent = formatInteger(result.requiredSpares);
+    resultFields.spares.textContent = optimizerSource.isAstraSecondary
+      ? `${formatInteger(requiredUnits)} booms`
+      : formatInteger(requiredUnits);
     resultFields.probability.textContent = formatPercent(result.achievedProbability);
     resultFields.total.textContent = formatCompactMeso(result.totalExpectedCost);
     resultFields.total.title = formatInteger(result.totalExpectedCost);
@@ -842,6 +975,7 @@ function clearProfileForm() {
   profileFields.name.value = "";
   profileFields.upgradeType.value = "starforce";
   profileFields.itemType.value = "armor";
+  profileFields.astraSecondary.checked = false;
   profileFields.itemLevel.value = "250";
   profileFields.startStar.value = "21";
   profileFields.targetStar.value = "22";
@@ -869,14 +1003,16 @@ function fillProfileForm(profile) {
   profileFields.name.value = profile.name;
   profileFields.upgradeType.value = profile.type === "cubing" ? "cubing" : "starforce";
   profileFields.itemType.value = profile.source?.itemType ?? "weapon";
+  profileFields.astraSecondary.checked = Boolean(profile.source?.isAstraSecondary);
   profileFields.itemLevel.value = profile.source?.itemLevel ?? 250;
   profileFields.startStar.value = profile.source?.startStar ?? 21;
   profileFields.targetStar.value = profile.source?.targetStar ?? 22;
-  profileFields.spareCount.value =
-    profile.source?.spareCount ??
-    profile.source?.percentileCosts?.availableSpares ??
-    profile.source?.percentileCosts?.requiredSpares ??
-    0;
+  profileFields.spareCount.value = profile.source?.isAstraSecondary
+    ? ""
+    : (profile.source?.spareCount ??
+      profile.source?.percentileCosts?.availableSpares ??
+      profile.source?.percentileCosts?.requiredSpares ??
+      0);
   profileFields.hitProbability.value = profile.source?.hitProbability
     ? profile.source.hitProbability * 100
     : 85;
@@ -916,12 +1052,14 @@ function renderAll() {
   renderProfileMode();
   renderProfileStarforceGains();
   renderOptimizerStarforceGains();
+  renderProfilePresets();
   renderProfiles();
   renderBenchmarkOptions();
   renderOptimizer();
 }
 
 function renderSavedProfileDependents() {
+  renderProfilePresets();
   renderProfiles();
   renderBenchmarkOptions();
   renderOptimizer();
@@ -1055,8 +1193,10 @@ profileForm.addEventListener("submit", (event) => {
   event.preventDefault();
   try {
     const editingId = profileForm.dataset.editingId || "";
+    const didEditProfile = Boolean(editingId);
     const isCubing = profileFields.upgradeType.value === "cubing";
     const additionalMesoCost = readFormattedIntegerInput(profileFields.additionalMesoCost);
+    const sfSource = getStarforceSourceFromFields(profileFields);
     const source = isCubing
       ? {
           cubeType: profileFields.cubeType.value,
@@ -1069,17 +1209,23 @@ profileForm.addEventListener("submit", (event) => {
           additionalMesoCost,
         }
       : {
-          itemType: profileFields.itemType.value,
-          itemLevel: Number(profileFields.itemLevel.value),
-          startStar: Number(profileFields.startStar.value),
-          targetStar: Number(profileFields.targetStar.value),
-          spareCount: Number(profileFields.spareCount.value),
+          ...sfSource,
+          ...(sfSource.isAstraSecondary
+            ? {}
+            : { spareCount: Number(profileFields.spareCount.value) }),
           hitProbability: Number(profileFields.hitProbability.value) / 100,
           events: getProfileEvents(),
           additionalMesoCost,
         };
     const costs = applyAdditionalMesoCost(
-      isCubing ? calculateCubingProfileCosts(source) : calculateStarforceProfileCosts(source),
+      isCubing
+        ? calculateCubingProfileCosts(source)
+        : source.isAstraSecondary
+          ? calculateAstraStarforceProfileCosts(source)
+          : calculateStarforceProfileCosts({
+              ...source,
+              replacementCostPerBoom: getStarforceReplacementCost(source),
+            }),
       additionalMesoCost,
     );
     const profile = validateProfileInput({
@@ -1095,12 +1241,16 @@ profileForm.addEventListener("submit", (event) => {
     });
     const strategy = isCubing ? source.targetLabel : formatStrategy(costs.strategy);
 
-    profiles = editingId
+    profiles = didEditProfile
       ? profiles.map((existingProfile) => (existingProfile.id === editingId ? profile : existingProfile))
       : [...profiles, profile];
     saveProfiles(undefined, profiles);
-    clearProfileForm();
-    setMessage(profileMessage, `Saved. Strategy: ${strategy}.`);
+    if (didEditProfile) {
+      fillProfileForm(profile);
+    } else {
+      clearProfileForm();
+    }
+    setMessage(profileMessage, didEditProfile ? `Updated. Strategy: ${strategy}.` : `Saved. Strategy: ${strategy}.`);
     renderProfiles();
     renderBenchmarkOptions();
     renderOptimizer();
@@ -1110,15 +1260,79 @@ profileForm.addEventListener("submit", (event) => {
 });
 
 profileReset.addEventListener("click", clearProfileForm);
-profileRestoreRecommended.addEventListener("click", () => {
-  if (!window.confirm("Replace saved upgrades with the recommended starter list?")) {
+profilePresetSelect.addEventListener("change", () => {
+  const preset = getSelectedProfilePreset();
+  profilePresetName.value = preset?.isBuiltIn ? "" : (preset?.name ?? "");
+  profilePresetDelete.disabled = profilePresetSelect.value === "recommended";
+});
+profilePresetLoad.addEventListener("click", () => {
+  const preset = getSelectedProfilePreset();
+  if (!preset) {
+    setMessage(profileMessage, "Choose a preset to load.");
+    return;
+  }
+  if (profiles.length > 0 && !window.confirm(`Replace saved upgrades with "${preset.name}" preset?`)) {
     return;
   }
 
-  profiles = getRecommendedProfiles();
+  profiles = cloneProfiles(preset.profiles);
+  delete profileForm.dataset.editingId;
   saveProfiles(undefined, profiles);
   renderSavedProfileDependents();
-  setMessage(profileMessage, "Restored recommended saved upgrades.");
+  setMessage(profileMessage, `Loaded preset "${preset.name}".`);
+});
+profilePresetSave.addEventListener("click", () => {
+  const name = profilePresetName.value.trim();
+  if (!name) {
+    setMessage(profileMessage, "Preset name is required.");
+    return;
+  }
+  if (name.toLowerCase() === "recommended") {
+    setMessage(profileMessage, "Recommended is reserved for the built-in preset.");
+    return;
+  }
+  if (profiles.length === 0) {
+    setMessage(profileMessage, "Save at least one upgrade before creating a preset.");
+    return;
+  }
+
+  const existingPreset = profilePresets.find(
+    (preset) => preset.name.toLowerCase() === name.toLowerCase(),
+  );
+  if (existingPreset && !window.confirm(`Overwrite preset "${existingPreset.name}"?`)) {
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const preset = validateProfilePresetInput({
+    id: existingPreset?.id,
+    name,
+    profiles: cloneProfiles(profiles),
+    createdAt: existingPreset?.createdAt ?? now,
+    updatedAt: now,
+  });
+  profilePresets = existingPreset
+    ? profilePresets.map((candidate) => (candidate.id === existingPreset.id ? preset : candidate))
+    : [...profilePresets, preset];
+  saveProfilePresets(undefined, profilePresets);
+  renderProfilePresets(preset.id);
+  setMessage(profileMessage, `Saved preset "${preset.name}".`);
+});
+profilePresetDelete.addEventListener("click", () => {
+  const preset = getSelectedProfilePreset();
+  if (!preset || preset.isBuiltIn) {
+    setMessage(profileMessage, "Recommended cannot be deleted.");
+    return;
+  }
+  if (!window.confirm(`Delete preset "${preset.name}"?`)) {
+    return;
+  }
+
+  profilePresets = profilePresets.filter((candidate) => candidate.id !== preset.id);
+  saveProfilePresets(undefined, profilePresets);
+  profilePresetName.value = "";
+  renderProfilePresets("recommended");
+  setMessage(profileMessage, `Deleted preset "${preset.name}".`);
 });
 profileClearAll.addEventListener("click", () => {
   if (!window.confirm("Clear all saved upgrades? This cannot be undone.")) {
@@ -1135,6 +1349,7 @@ profileFields.cubingItemType.addEventListener("change", () => renderCubingTarget
 profileFields.cubingItemLevel.addEventListener("input", () => renderCubingTargetOptions());
 profileFields.cubingDesiredTier.addEventListener("change", () => renderCubingTargetOptions());
 profileFields.itemType.addEventListener("change", renderProfileStarforceGains);
+profileFields.astraSecondary.addEventListener("change", renderProfileStarforceGains);
 profileFields.itemLevel.addEventListener("input", renderProfileStarforceGains);
 profileFields.startStar.addEventListener("input", renderProfileStarforceGains);
 profileFields.targetStar.addEventListener("input", renderProfileStarforceGains);
@@ -1142,6 +1357,7 @@ profileFields.additionalMesoCost.addEventListener("input", () => {
   formatIntegerInput(profileFields.additionalMesoCost);
 });
 optimizerFields.itemType.addEventListener("change", renderOptimizerStarforceGains);
+optimizerFields.astraSecondary.addEventListener("change", renderOptimizerStarforceGains);
 optimizerFields.itemLevel.addEventListener("input", renderOptimizerStarforceGains);
 optimizerFields.startStar.addEventListener("input", renderOptimizerStarforceGains);
 optimizerFields.targetStar.addEventListener("input", renderOptimizerStarforceGains);

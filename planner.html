@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Enhancement Planner</title>
-    <link rel="stylesheet" href="./src/styles.css?v=20260620-delete-confirm-right">
+    <link rel="stylesheet" href="./src/styles.css?v=20260622-profile-presets">
   </head>
   <body>
     <main class="app-shell planner-shell">
@@ -107,6 +107,10 @@
                   <option value="secondary">Secondary</option>
                 </select>
               </label>
+              <label class="checkbox-label inline-option astra-option hidden" id="profile-astra-option">
+                <input id="profile-astra-secondary" type="checkbox">
+                <span>Astra secondary</span>
+              </label>
               <div class="three-col compact-number-grid">
                 <label>
                   <span>Item level</span>
@@ -114,15 +118,15 @@
                 </label>
                 <label>
                   <span>Start star</span>
-                  <input id="profile-start-star" inputmode="numeric" max="24" min="0" step="1" type="number" value="21">
+                  <input id="profile-start-star" inputmode="numeric" max="29" min="0" step="1" type="number" value="21">
                 </label>
                 <label>
                   <span>Target star</span>
-                  <input id="profile-target-star" inputmode="numeric" max="25" min="1" step="1" type="number" value="22">
+                  <input id="profile-target-star" inputmode="numeric" max="30" min="1" step="1" type="number" value="22">
                 </label>
               </div>
               <div class="two-col compact-number-grid">
-                <label>
+                <label id="profile-spare-field">
                   <span>Available spares</span>
                   <input id="profile-spare-count" inputmode="numeric" min="0" step="1" type="number" value="6">
                 </label>
@@ -241,15 +245,27 @@
                 <h2>Saved upgrades</h2>
                 <p class="subtle-copy">Cost and strategy are computed from the saved target.</p>
               </div>
-              <div class="section-actions">
-                <button class="ghost-button" id="profile-restore-recommended" type="button">
-                  Restore recommended
-                </button>
+              <div class="section-actions destructive-actions">
                 <button class="ghost-button danger-button" id="profile-clear-all" type="button">
                   Clear saved upgrades
                 </button>
               </div>
             </div>
+            <section class="profile-preset-panel" aria-label="Saved upgrade presets">
+              <label>
+                <span>Preset</span>
+                <select id="profile-preset-select"></select>
+              </label>
+              <label>
+                <span>Preset name</span>
+                <input id="profile-preset-name" type="text">
+              </label>
+              <div class="button-row profile-preset-actions">
+                <button class="ghost-button compact-button" id="profile-preset-load" type="button">Load</button>
+                <button class="ghost-button compact-button" id="profile-preset-save" type="button">Save as preset</button>
+                <button class="ghost-button compact-button" id="profile-preset-delete" type="button">Delete preset</button>
+              </div>
+            </section>
             <div class="table-wrap">
               <table class="planner-table saved-upgrades-table">
                 <thead>
@@ -268,7 +284,7 @@
                     </th>
                     <th aria-sort="none">
                       <button class="sort-button" data-profile-sort="targetOdds" type="button">
-                        85% odds <span class="sort-indicator" aria-hidden="true"></span>
+                        Target cost <span class="sort-indicator" aria-hidden="true"></span>
                       </button>
                     </th>
                     <th aria-sort="descending">
@@ -309,6 +325,10 @@
                 <option value="secondary">Secondary</option>
               </select>
             </label>
+            <label class="checkbox-label inline-option astra-option hidden" id="optimizer-astra-option">
+              <input id="optimizer-astra-secondary" type="checkbox">
+              <span>Astra secondary</span>
+            </label>
             <div class="three-col compact-number-grid">
               <label>
                 <span>Item level</span>
@@ -316,11 +336,11 @@
               </label>
               <label>
                 <span>Start star</span>
-                <input id="optimizer-start-star" inputmode="numeric" max="24" min="0" step="1" type="number" value="15">
+                <input id="optimizer-start-star" inputmode="numeric" max="29" min="0" step="1" type="number" value="15">
               </label>
               <label>
                 <span>Target star</span>
-                <input id="optimizer-target-star" inputmode="numeric" max="25" min="1" step="1" type="number" value="22">
+                <input id="optimizer-target-star" inputmode="numeric" max="30" min="1" step="1" type="number" value="22">
               </label>
             </div>
             <section class="stat-change-preview" aria-label="Star Force stat changes">
@@ -434,6 +454,6 @@
       </section>
     </main>
 
-    <script type="module" src="./src/planner.mjs"></script>
+    <script type="module" src="./src/planner.mjs?v=20260622-profile-presets"></script>
   </body>
 </html>

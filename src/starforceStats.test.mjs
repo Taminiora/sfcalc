@@ -46,3 +46,18 @@ test("uses weapon high-star attack deltas and caps level 250 weapons to the 200 
     },
   );
 });
+
+test("uses level 200 armor stat gains for Astra secondary through 30 stars", () => {
+  assert.deepEqual(
+    calculateStarforceStatGains({
+      itemType: "secondary",
+      itemLevel: 200,
+      startStar: 25,
+      targetStar: 30,
+      isAstraSecondary: true,
+    }),
+    {
+      Attack: 140,
+    },
+  );
+});

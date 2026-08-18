@@ -13,13 +13,13 @@ export {
 // cost and outcome probabilities that every larger strategy calculation uses.
 
 export const MIN_STAR = 0;
-export const MAX_TARGET_STAR = 25;
+export const MAX_TARGET_STAR = 30;
 export const MODE_START_STAR = 15;
 export const MODE_END_STAR = 21;
 export const MODE_IDS = ["1", "2", "3", "4"];
 export const STAR_CATCH_MULTIPLIER = 1.05;
 export const BOOM_REDUCTION_MULTIPLIER = 0.7;
-export const RECOVERY_ANCHOR_STARS = [12, 15, 17, 19];
+export const RECOVERY_ANCHOR_STARS = [12, 15, 17, 19, 20];
 
 export function assertFiniteNumber(value, label) {
   if (!Number.isFinite(value)) {

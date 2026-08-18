@@ -324,6 +324,7 @@ tr:last-child td {
   }
 
   .paste-panel,
+  .profile-preset-panel,
   .stat-preset-panel {
     grid-template-columns: 1fr;
   }
@@ -754,6 +755,7 @@ tr:last-child td {
   padding: 12px;
 }
 
+.profile-preset-panel,
 .stat-preset-panel {
   align-items: end;
   border: 1px solid var(--border);
@@ -764,6 +766,11 @@ tr:last-child td {
   padding: 12px;
 }
 
+.profile-preset-panel {
+  margin-bottom: 14px;
+}
+
+.profile-preset-actions,
 .stat-preset-actions {
   align-items: end;
 }
@@ -1130,6 +1137,10 @@ tr:last-child td {
   text-transform: uppercase;
 }
 
+.warning-note {
+  color: var(--danger);
+}
+
 .empty-state {
   color: var(--text-muted);
   font-size: 0.9rem;
@@ -1340,6 +1351,19 @@ html[data-theme="dark"] .cubing-config-panel {
 
 .checkbox-label input {
   width: auto;
+}
+
+.inline-option {
+  color: var(--text-soft);
+  font-size: 0.82rem;
+  font-weight: 800;
+  margin-top: -4px;
+}
+
+.astra-option {
+  margin-bottom: 16px;
+  margin-top: 12px;
+  max-width: max-content;
 }
 
 .planner-metrics {

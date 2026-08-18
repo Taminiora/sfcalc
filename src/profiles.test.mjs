@@ -12,17 +12,22 @@ import {
   calculateStarforceFdGain,
   deriveProfileMetrics,
   expandClassStatGains,
+  getRecommendedProfiles,
   loadProfiles,
+  loadProfilePresets,
   loadStatEquivalence,
   loadStatEquivalencePresets,
   refreshStarforceProfileCosts,
   saveProfiles,
+  saveProfilePresets,
   saveStatEquivalence,
   saveStatEquivalencePresets,
   validateProfileInput,
+  validateProfilePresetInput,
   validateStatEquivalenceInput,
   validateStatEquivalencePresetInput,
 } from "./profiles.mjs";
+import { formatStarforceStrategyForSource } from "./plannerStarforce.mjs";
 import { formatStrategy } from "./strategyFormat.mjs";
 import { parseScouterFinalDamageTable } from "./statEquivalenceParser.mjs";
 
@@ -599,37 +604,262 @@ test("loads recommended saved upgrades when no profile library exists", () => {
   assert.ok(profiles.length >= 10);
   assert.deepEqual(
     [
-      "21★ → 22★ armor (250)",
-      "22★ → 23★ accessory (160, 10 spares)",
-      "24★ → 25★ armor (250)",
-      "Emblem: 33% → double-prime attack",
-      "Weapon: 33% attack → 23/40",
-      "Gloves: 2L crit+stat → 3L crit",
-      "Hat: -4s cooldown + stat",
+      "Astra 22★ → 23★",
+      "22★ → 23★ Pitched lv160",
+      "22★ → 23★ Kalos Eternals (10 spares)",
+      "23★ → 24★ Pitched lv160",
+      "Astra 25★ → 26★",
+      "23★ → 24★ Pitched lv200",
+      "24★ → 25★ Limbo Eternals (5 spares)",
+      "Real DP heart",
+      "DP emblem",
+      "DP weapon",
+      "DP secondary",
     ].every((name) => names.includes(name)),
     true,
   );
   assert.ok(profiles.every((profile) => Number.isFinite(profile.p95Cost) && profile.p95Cost > 1));
   assert.ok(profiles.every((profile) => profile.source?.percentileCosts));
   assert.equal(
-    profiles.filter((profile) => profile.type === "starforce").every((profile) => profile.source.spareCount === 10),
+    profiles
+      .filter((profile) => profile.type === "starforce" && !profile.source.isAstraSecondary)
+      .every((profile) => [0, 5, 10].includes(profile.source.spareCount)),
     true,
   );
   assert.equal(
-    profiles.find((profile) => profile.name === "22★ → 23★ accessory (160, 10 spares)")?.source.itemType,
+    profiles
+      .filter((profile) => profile.type === "starforce" && profile.source.isAstraSecondary)
+      .every((profile) => profile.source.spareCount === undefined),
+    true,
+  );
+  assert.equal(
+    profiles.find((profile) => profile.name === "22★ → 23★ Pitched lv160")?.source.itemType,
     "accessory",
   );
+  const pitched160TwentyTwoToTwentyThree = profiles.find(
+    (profile) => profile.name === "22★ → 23★ Pitched lv160",
+  );
+  const pitched200TwentyTwoToTwentyThree = profiles.find(
+    (profile) => profile.name === "22★ → 23★ Pitched lv200",
+  );
+  assert.equal(pitched160TwentyTwoToTwentyThree?.source.spareCount, 0);
+  assert.equal(pitched200TwentyTwoToTwentyThree?.source.spareCount, 0);
+  assert.equal(pitched200TwentyTwoToTwentyThree?.source.itemType, "accessory");
+  assert.equal(pitched160TwentyTwoToTwentyThree.source.percentileCosts.requiredSpares, 2);
+  assert.equal(pitched200TwentyTwoToTwentyThree.source.percentileCosts.requiredSpares, 2);
+  assert.equal(pitched160TwentyTwoToTwentyThree.source.percentileCosts.guaranteeMet, false);
+  assert.equal(pitched200TwentyTwoToTwentyThree.source.percentileCosts.guaranteeMet, false);
   assert.equal(
-    profiles.find((profile) => profile.name === "Emblem: 33% → double-prime attack")?.source.target,
-    "percAtt+36",
+    formatStrategy(
+      formatStarforceStrategyForSource(
+        pitched160TwentyTwoToTwentyThree.source.percentileCosts.strategy,
+        pitched160TwentyTwoToTwentyThree.source,
+      ),
+      { showBaseSuffix: false },
+    ),
+    "**4/44/44",
   );
   assert.equal(
-    profiles.find((profile) => profile.name === "Secondary: 33% → double-prime attack")?.source.target,
-    "percAtt+36",
+    formatStrategy(
+      formatStarforceStrategyForSource(
+        pitched200TwentyTwoToTwentyThree.source.percentileCosts.strategy,
+        pitched200TwentyTwoToTwentyThree.source,
+      ),
+      { showBaseSuffix: false },
+    ),
+    "**4/44/44",
+  );
+  assert.ok(
+    Math.abs(pitched160TwentyTwoToTwentyThree.source.percentileCosts.expectedBooms - 1.0698412698) <
+      1e-9,
+  );
+  assert.ok(
+    Math.abs(pitched200TwentyTwoToTwentyThree.source.percentileCosts.expectedBooms - 1.0698412698) <
+      1e-9,
+  );
+  assert.ok(
+    Math.abs(
+      pitched160TwentyTwoToTwentyThree.source.percentileCosts.achievedProbability - 0.4831288344,
+    ) < 1e-9,
+  );
+  assert.ok(
+    Math.abs(
+      pitched200TwentyTwoToTwentyThree.source.percentileCosts.achievedProbability - 0.4831288344,
+    ) < 1e-9,
   );
   assert.equal(
-    profiles.find((profile) => profile.name === "Armor: 3L stat → double-prime stat")?.source.target,
+    Math.round(
+      profiles.find((profile) => profile.name === "23★ → 24★ Pitched lv160")?.p95Cost,
+    ),
+    110_745_668_614,
+  );
+  assert.equal(
+    Math.round(
+      profiles.find((profile) => profile.name === "23★ → 24★ Pitched lv200")?.p95Cost,
+    ),
+    216_299_533_568,
+  );
+  const pitched160TwentyThreeToTwentyFour = profiles.find(
+    (profile) => profile.name === "23★ → 24★ Pitched lv160",
+  );
+  const pitched200TwentyThreeToTwentyFour = profiles.find(
+    (profile) => profile.name === "23★ → 24★ Pitched lv200",
+  );
+  assert.equal(pitched160TwentyThreeToTwentyFour?.source.itemType, "accessory");
+  assert.equal(pitched200TwentyThreeToTwentyFour?.source.itemType, "accessory");
+  assert.equal(pitched160TwentyThreeToTwentyFour?.source.startStar, 23);
+  assert.equal(pitched200TwentyThreeToTwentyFour?.source.startStar, 23);
+  assert.equal(pitched160TwentyThreeToTwentyFour?.source.spareCount, 0);
+  assert.equal(pitched200TwentyThreeToTwentyFour?.source.spareCount, 0);
+  assert.equal(
+    formatStrategy(pitched160TwentyThreeToTwentyFour.source.percentileCosts.strategy, {
+      showBaseSuffix: false,
+    }),
+    "444/44/44",
+  );
+  assert.equal(
+    formatStrategy(pitched200TwentyThreeToTwentyFour.source.percentileCosts.strategy, {
+      showBaseSuffix: false,
+    }),
+    "444/44/44",
+  );
+  assert.ok(
+    Math.abs(
+      pitched160TwentyThreeToTwentyFour.source.percentileCosts.expectedBooms - 3.5285865457,
+    ) < 1e-9,
+  );
+  assert.ok(
+    Math.abs(
+      pitched200TwentyThreeToTwentyFour.source.percentileCosts.expectedBooms - 3.5285865457,
+    ) < 1e-9,
+  );
+  assert.equal(pitched160TwentyThreeToTwentyFour.source.percentileCosts.requiredSpares, 8);
+  assert.equal(pitched200TwentyThreeToTwentyFour.source.percentileCosts.requiredSpares, 8);
+  assert.equal(pitched160TwentyThreeToTwentyFour.source.percentileCosts.guaranteeMet, false);
+  assert.equal(pitched200TwentyThreeToTwentyFour.source.percentileCosts.guaranteeMet, false);
+  assert.ok(
+    Math.abs(
+      pitched160TwentyThreeToTwentyFour.source.percentileCosts.achievedProbability - 0.3697183099,
+    ) < 1e-9,
+  );
+  assert.ok(
+    Math.abs(
+      pitched200TwentyThreeToTwentyFour.source.percentileCosts.achievedProbability - 0.3697183099,
+    ) < 1e-9,
+  );
+  assert.equal(
+    profiles.find((profile) => profile.name === "24★ → 25★ Kalos Eternals (10 spares)")
+      ?.source.percentileCosts.strategy.length,
+    10,
+  );
+  assert.equal(
+    formatStrategy(
+      formatStarforceStrategyForSource(
+        profiles.find((profile) => profile.name === "22★ → 23★ Kalos Eternals (10 spares)")
+          ?.source.percentileCosts.strategy,
+        profiles.find((profile) => profile.name === "22★ → 23★ Kalos Eternals (10 spares)")
+          ?.source,
+      ),
+      { showBaseSuffix: false },
+    ),
+    "222/11/21",
+  );
+  assert.equal(
+    formatStrategy(
+      formatStarforceStrategyForSource(
+        profiles.find((profile) => profile.name === "23★ → 24★ Kalos Eternals (10 spares)")
+          ?.source.percentileCosts.strategy,
+        profiles.find((profile) => profile.name === "23★ → 24★ Kalos Eternals (10 spares)")
+          ?.source,
+      ),
+      { showBaseSuffix: false },
+    ),
+    "444/33/44",
+  );
+  assert.equal(names.some((name) => name.includes("ladder")), false);
+  assert.equal(names.some((name) => name.includes("(1114)") || name.includes("(1144)")), false);
+  assert.equal(
+    profiles.find((profile) => profile.name === "Astra 22★ → 23★")?.source.isAstraSecondary,
+    true,
+  );
+  const limboProfiles = profiles.filter((profile) => profile.name.includes("Limbo Eternals"));
+  assert.deepEqual(
+    limboProfiles.map((profile) => profile.name),
+    [
+      "22★ → 23★ Limbo Eternals (5 spares)",
+      "23★ → 24★ Limbo Eternals (5 spares)",
+      "24★ → 25★ Limbo Eternals (5 spares)",
+    ],
+  );
+  assert.deepEqual(
+    limboProfiles.map((profile) => profile.source.spareCount),
+    [5, 5, 5],
+  );
+  assert.deepEqual(
+    limboProfiles.map((profile) => profile.source.percentileCosts.requiredSpares),
+    [5, 8, 22],
+  );
+  assert.deepEqual(
+    limboProfiles.map((profile) => profile.source.percentileCosts.guaranteeMet),
+    [true, false, false],
+  );
+  assert.ok(
+    Math.abs(limboProfiles[0].source.percentileCosts.achievedProbability - 0.8511966259) < 1e-9,
+  );
+  assert.ok(
+    Math.abs(limboProfiles[1].source.percentileCosts.achievedProbability - 0.7643588445) < 1e-9,
+  );
+  assert.ok(
+    Math.abs(limboProfiles[2].source.percentileCosts.achievedProbability - 0.5521043473) < 1e-9,
+  );
+  assert.deepEqual(
+    limboProfiles.map((profile) =>
+      formatStrategy(
+        formatStarforceStrategyForSource(profile.source.percentileCosts.strategy, profile.source),
+        { showBaseSuffix: false },
+      ),
+    ),
+    ["222/11/44", "**4/44/44", "**4/44/44"],
+  );
+  assert.deepEqual(
+    profiles.filter((profile) => profile.type === "cubing").map((profile) => profile.name),
+    ["Real DP heart", "DP emblem", "DP weapon", "DP secondary"],
+  );
+  assert.equal(
+    profiles.find((profile) => profile.name === "Real DP heart")?.source.itemLevel,
+    200,
+  );
+  assert.equal(
+    profiles.find((profile) => profile.name === "Real DP heart")?.source.target,
     "percStat+36",
+  );
+  assert.equal(
+    profiles.find((profile) => profile.name === "DP emblem")?.source.target,
+    "percAtt+36",
+  );
+  assert.equal(
+    profiles.find((profile) => profile.name === "DP emblem")?.source.itemLevel,
+    200,
+  );
+  assert.equal(
+    profiles.find((profile) => profile.name === "DP emblem")?.statGains["Attack%"],
+    3,
+  );
+  assert.equal(
+    profiles.find((profile) => profile.name === "DP weapon")?.source.itemLevel,
+    200,
+  );
+  assert.equal(
+    profiles.find((profile) => profile.name === "DP secondary")?.source.target,
+    "percAtt+36",
+  );
+  assert.equal(
+    profiles.find((profile) => profile.name === "DP secondary")?.source.itemLevel,
+    140,
+  );
+  assert.equal(
+    profiles.find((profile) => profile.name === "DP secondary")?.statGains["Attack%"],
+    3,
   );
 });
 
@@ -640,7 +870,7 @@ test("keeps an explicitly empty saved upgrade library empty", () => {
   assert.deepEqual(loadProfiles(storage), []);
 });
 
-test("migrates the old 160 armor recommended row to 160 accessory with 10 spares", () => {
+test("preserves locally saved recommended rows instead of forcing preset migrations", () => {
   const storage = new MapStorage();
   storage.setItem(
     "sfcalc.enhancementPlanner.profiles.v2",
@@ -668,10 +898,173 @@ test("migrates the old 160 armor recommended row to 160 accessory with 10 spares
 
   const [profile] = loadProfiles(storage);
 
-  assert.equal(profile.id, "recommended-sf-22-23-accessory-160");
-  assert.equal(profile.name, "22★ → 23★ accessory (160, 10 spares)");
-  assert.equal(profile.source.itemType, "accessory");
-  assert.equal(profile.source.spareCount, 10);
+  assert.equal(profile.id, "recommended-sf-22-23-armor-160");
+  assert.equal(profile.name, "22★ → 23★ armor (160)");
+  assert.equal(profile.source.itemType, "armor");
+  assert.equal(profile.source.spareCount, undefined);
+  assert.equal(profile.p95Cost, 1);
+});
+
+test("preserves stale local saved rows instead of forcing recommended replacements", () => {
+  const storage = new MapStorage();
+  storage.setItem(
+    "sfcalc.enhancementPlanner.profiles.v2",
+    JSON.stringify([
+      {
+        id: "old-manual-pitched",
+        name: "0★ → 24★ Pitched lv160 (9 spares)",
+        type: "starforce",
+        statGains: {},
+        p50Cost: 186_000_000_000,
+        p75Cost: 186_000_000_000,
+        p95Cost: 186_000_000_000,
+        source: {
+          itemType: "accessory",
+          itemLevel: 160,
+          startStar: 0,
+          targetStar: 24,
+          spareCount: 9,
+          hitProbability: 0.85,
+          events: {},
+          percentileCosts: {
+            p50Cost: 186_000_000_000,
+            p75Cost: 186_000_000_000,
+            p85Cost: 186_000_000_000,
+            p95Cost: 186_000_000_000,
+            strategy: [],
+          },
+        },
+      },
+    ]),
+  );
+
+  const [profile] = loadProfiles(storage);
+
+  assert.equal(profile.id, "old-manual-pitched");
+  assert.equal(profile.name, "0★ → 24★ Pitched lv160 (9 spares)");
+  assert.equal(profile.source.startStar, 0);
+  assert.equal(profile.source.targetStar, 24);
+  assert.equal(profile.source.spareCount, 9);
+  assert.equal(profile.source.percentileCosts.p95Cost, 186_000_000_000);
+});
+
+test("the built-in recommended preset exposes the updated rows", () => {
+  const recommendedProfiles = getRecommendedProfiles();
+  const pitched = recommendedProfiles.find(
+    (profile) => profile.id === "recommended-sf-22-23-pitched-160",
+  );
+
+  assert.equal(pitched.name, "22★ → 23★ Pitched lv160");
+  assert.equal(pitched.source.itemType, "accessory");
+  assert.equal(pitched.source.spareCount, 0);
+  assert.equal(pitched.source.percentileCosts.requiredSpares, 2);
+  assert.equal(
+    formatStrategy(
+      formatStarforceStrategyForSource(pitched.source.percentileCosts.strategy, pitched.source),
+      { showBaseSuffix: false },
+    ),
+    "**4/44/44",
+  );
+});
+
+test("preserves stale recommended-id rows in named saved-upgrade presets", () => {
+  const storage = new MapStorage();
+  storage.setItem(
+    "sfcalc.enhancementPlanner.profilePresets.v1",
+    JSON.stringify([
+      {
+        id: "my-preset",
+        name: "My preset",
+        profiles: [
+          {
+            id: "recommended-sf-22-23-pitched-160",
+            name: "22★ → 23★ Pitched lv160",
+            type: "starforce",
+            statGains: {},
+            p50Cost: 39_000_000_000,
+            p75Cost: 39_000_000_000,
+            p95Cost: 39_000_000_000,
+            source: {
+              itemType: "accessory",
+              itemLevel: 160,
+              startStar: 22,
+              targetStar: 23,
+              spareCount: 0,
+              hitProbability: 0.85,
+              events: {},
+              percentileCosts: {
+                p50Cost: 39_000_000_000,
+                p75Cost: 39_000_000_000,
+                p85Cost: 39_000_000_000,
+                p95Cost: 39_000_000_000,
+                requiredSpares: 12,
+                strategy: [{ star: 15, nextStar: 16, mode: "1" }],
+              },
+            },
+          },
+        ],
+      },
+    ]),
+  );
+
+  const [preset] = loadProfilePresets(storage);
+  const [profile] = preset.profiles;
+
+  assert.equal(profile.id, "recommended-sf-22-23-pitched-160");
+  assert.equal(profile.source.percentileCosts.requiredSpares, 12);
+  assert.equal(formatStrategy(profile.source.percentileCosts.strategy), "1");
+});
+
+test("preserves customized saved-upgrade presets", () => {
+  const storage = new MapStorage();
+  const customProfile = {
+    id: "recommended-sf-22-23-pitched-160",
+    name: "My custom Pitched row",
+    type: "starforce",
+    statGains: { Attack: 1 },
+    p50Cost: 39_000_000_000,
+    p75Cost: 39_000_000_000,
+    p95Cost: 39_000_000_000,
+    notes: "keep this",
+    source: {
+      itemType: "accessory",
+      itemLevel: 160,
+      startStar: 22,
+      targetStar: 23,
+      spareCount: 0,
+      hitProbability: 0.85,
+      events: { starCatch: false, costReduction30: true, boomReduction30: true },
+      additionalMesoCost: 123,
+      percentileCosts: {
+        p50Cost: 39_000_000_000,
+        p75Cost: 39_000_000_000,
+        p85Cost: 39_000_000_000,
+        p95Cost: 39_000_000_000,
+        requiredSpares: 12,
+        strategy: [{ star: 15, nextStar: 16, mode: "1" }],
+      },
+    },
+  };
+  storage.setItem(
+    "sfcalc.enhancementPlanner.profilePresets.v1",
+    JSON.stringify([
+      {
+        id: "my-preset",
+        name: "My preset",
+        profiles: [customProfile],
+      },
+    ]),
+  );
+
+  const [preset] = loadProfilePresets(storage);
+  const [profile] = preset.profiles;
+
+  assert.equal(profile.name, "My custom Pitched row");
+  assert.deepEqual(profile.statGains, { Attack: 1 });
+  assert.equal(profile.notes, "keep this");
+  assert.equal(profile.source.events.starCatch, false);
+  assert.equal(profile.source.additionalMesoCost, 123);
+  assert.equal(profile.source.percentileCosts.requiredSpares, 12);
 });
 
 test("saves and loads stat-equivalence rows and profiles", () => {
@@ -716,17 +1109,63 @@ test("saves and loads named stat-equivalence presets", () => {
   assert.deepEqual(loadStatEquivalencePresets(storage), presets);
 });
 
+test("saves and loads named saved-upgrade presets", () => {
+  const storage = new MapStorage();
+  const profile = validateProfileInput({
+    id: "profile-1",
+    name: "21 to 22 armor",
+    type: "starforce",
+    statGains: {},
+    p50Cost: 10_000_000_000,
+    p75Cost: 10_000_000_000,
+    p95Cost: 10_000_000_000,
+    notes: "",
+    source: {
+      itemType: "armor",
+      itemLevel: 250,
+      startStar: 21,
+      targetStar: 22,
+      spareCount: 10,
+      hitProbability: 0.85,
+      events: {},
+      percentileCosts: {
+        p50Cost: 10_000_000_000,
+        p75Cost: 10_000_000_000,
+        p85Cost: 10_000_000_000,
+        p95Cost: 10_000_000_000,
+        strategy: [],
+      },
+    },
+  });
+  const presets = [
+    validateProfilePresetInput({
+      id: "upgrade-preset-1",
+      name: "Eternal preset",
+      profiles: [profile],
+      createdAt: "2026-06-22T00:00:00.000Z",
+      updatedAt: "2026-06-22T00:00:00.000Z",
+    }),
+  ];
+
+  saveProfilePresets(storage, presets);
+
+  assert.deepEqual(loadProfilePresets(storage), presets);
+  assert.notEqual(loadProfilePresets(storage)[0].profiles, presets[0].profiles);
+});
+
 test("falls back to defaults when saved planner data is corrupt", () => {
   const storage = new MapStorage();
   storage.setItem("sfcalc.enhancementPlanner.statEquivalence.v2", "{not json");
   storage.setItem("sfcalc.enhancementPlanner.profiles.v2", JSON.stringify({ not: "an array" }));
   storage.setItem("sfcalc.enhancementPlanner.statEquivalencePresets.v1", JSON.stringify({ not: "an array" }));
+  storage.setItem("sfcalc.enhancementPlanner.profilePresets.v1", JSON.stringify({ not: "an array" }));
 
   assert.deepEqual(
     loadStatEquivalence(storage),
     validateStatEquivalenceInput({ className: DEFAULT_STAT_EQUIVALENCE_CLASS }),
   );
   assert.deepEqual(loadStatEquivalencePresets(storage), []);
+  assert.deepEqual(loadProfilePresets(storage), []);
   assert.deepEqual(loadProfiles(storage), []);
 });
 

@@ -1,4 +1,8 @@
 import { calculateCubingProfileCosts } from "./cubing.mjs";
+import {
+  ASTRA_REPLACEMENT_COST as ASTRA_SECONDARY_REPLACEMENT_COST,
+  calculateAstraStarforceProfileCosts,
+} from "./astraStarforce.mjs";
 import { calculateStarforceProfileCosts } from "./plannerStarforce.mjs";
 import { calculateStarforceStatGains, CLASS_STAT } from "./starforceStats.mjs";
 import {
@@ -11,6 +15,7 @@ import {
 const PROFILE_STORAGE_KEY = "sfcalc.enhancementPlanner.profiles.v2";
 const STAT_EQUIVALENCE_STORAGE_KEY = "sfcalc.enhancementPlanner.statEquivalence.v2";
 const STAT_EQUIVALENCE_PRESET_STORAGE_KEY = "sfcalc.enhancementPlanner.statEquivalencePresets.v1";
+const PROFILE_PRESET_STORAGE_KEY = "sfcalc.enhancementPlanner.profilePresets.v1";
 
 const PRESENTED_STAT_RENAMES = Object.freeze({
   DEX: "Main Stat",
@@ -62,12 +67,15 @@ function createDefaultStarforceProfile({
   startStar,
   targetStar,
   spareCount = 10,
+  isAstraSecondary = false,
+  statGains = {},
   p50Cost,
   p75Cost,
   p95Cost,
   percentileCosts,
   notes = "",
 }) {
+  const effectiveSpareCount = isAstraSecondary ? undefined : spareCount;
   const source = {
     itemType,
     itemLevel,
@@ -76,8 +84,11 @@ function createDefaultStarforceProfile({
     hitProbability: 0.85,
     events: DEFAULT_STARFORCE_EVENTS,
   };
-  if (spareCount !== undefined) {
-    source.spareCount = spareCount;
+  if (isAstraSecondary) {
+    source.isAstraSecondary = true;
+  }
+  if (effectiveSpareCount !== undefined) {
+    source.spareCount = effectiveSpareCount;
   }
   if (percentileCosts) {
     source.percentileCosts = percentileCosts;
@@ -87,7 +98,7 @@ function createDefaultStarforceProfile({
     id,
     name,
     type: "starforce",
-    statGains: {},
+    statGains,
     p50Cost,
     p75Cost,
     p95Cost,
@@ -96,10 +107,127 @@ function createDefaultStarforceProfile({
   };
 }
 
+const STRATEGY_STARS = Object.freeze([15, 16, 17, 18, 19, 20, 21]);
+const DEFAULT_DP_STAT_LINES = 3;
+const DEFAULT_DP_ATTACK_LINES = 3;
+
+function getCostInMeso(costB) {
+  return Number(costB) * 1_000_000_000;
+}
+
+function getStarforceStrategyRows(strategy = "111/11/11", targetStar = 22) {
+  const modes = String(strategy).replace(/\//g, "").split("");
+  const rows = STRATEGY_STARS.map((star, index) => ({
+    star,
+    nextStar: star + 1,
+    mode: modes[index] ?? "1",
+  }));
+  for (let star = 22; star < targetStar; star += 1) {
+    rows.push({ star, nextStar: star + 1, mode: "Base" });
+  }
+  return rows;
+}
+
+function createPresetStarforceProfile({
+  id,
+  name,
+  itemType = "armor",
+  itemLevel,
+  startStar,
+  targetStar,
+  spareCount = 10,
+  isAstraSecondary = false,
+  costB,
+  expectedBooms = 0,
+  achievedProbability = 0.85,
+  guaranteeMet = true,
+  requiredSpares,
+  strategy = "111/11/11",
+  notes = "",
+}) {
+  const cost = getCostInMeso(costB);
+  const effectiveSpareCount = isAstraSecondary ? undefined : spareCount;
+  const effectiveRequiredSpares = requiredSpares ?? effectiveSpareCount ?? Math.ceil(expectedBooms);
+  return createDefaultStarforceProfile({
+    id,
+    name,
+    itemType,
+    itemLevel,
+    startStar,
+    targetStar,
+    spareCount: effectiveSpareCount,
+    isAstraSecondary,
+    p50Cost: cost,
+    p75Cost: cost,
+    p95Cost: cost,
+    percentileCosts: {
+      p50Cost: cost,
+      p75Cost: cost,
+      p85Cost: cost,
+      p95Cost: cost,
+      p50Booms: Math.floor(expectedBooms),
+      p75Booms: Math.ceil(expectedBooms),
+      p95Booms: Math.ceil(expectedBooms * 2),
+      availableSpares: effectiveSpareCount ?? null,
+      requiredSpares: effectiveRequiredSpares,
+      requiredBooms: effectiveRequiredSpares,
+      achievedProbability,
+      guaranteeMet,
+      expectedMeso: cost,
+      expectedTotalCost: cost,
+      expectedBooms,
+      strategy: getStarforceStrategyRows(strategy, targetStar),
+    },
+    notes,
+  });
+}
+
+function createPresetCubingProfile({
+  id,
+  name,
+  itemType,
+  itemLevel = 250,
+  target,
+  targetLabel,
+  statGains,
+  costB,
+  notes = "",
+}) {
+  const cost = getCostInMeso(costB);
+  return createDefaultCubingProfile({
+    id,
+    name,
+    itemType,
+    itemLevel,
+    target,
+    targetLabel,
+    statGains,
+    p50Cost: cost,
+    p75Cost: cost,
+    p95Cost: cost,
+    percentileCosts: {
+      p50Cost: cost,
+      p75Cost: cost,
+      p85Cost: cost,
+      p95Cost: cost,
+      p85Cubes: Math.round(cost / 23_250_000),
+      p95Cubes: Math.round(cost / 23_250_000),
+      meanCubes: cost / 23_250_000,
+      expectedCost: cost,
+      strategy: target,
+      probability: 0,
+      cubeCost: 22_000_000,
+      revealCost: 1_250_000,
+    },
+    notes,
+  });
+}
+
 function createDefaultCubingProfile({
   id,
   name,
   itemType,
+  itemLevel = 250,
   target,
   targetLabel,
   statGains,
@@ -121,7 +249,7 @@ function createDefaultCubingProfile({
     source: {
       cubeType: "black",
       itemType,
-      itemLevel: 250,
+      itemLevel,
       cubeSale: false,
       desiredTier: "legendary",
       target,
@@ -132,404 +260,229 @@ function createDefaultCubingProfile({
 }
 
 export const DEFAULT_PROFILE_INPUTS = Object.freeze([
-  createDefaultStarforceProfile({
-    id: "recommended-sf-18-22-armor-250",
-    name: "18★ → 22★ armor (250)",
-    itemLevel: 250,
-    startStar: 18,
-    targetStar: 22,
-    p50Cost: 27929470642.62332,
-    p75Cost: 27929470642.62332,
-    p95Cost: 27929470642.62332,
-    percentileCosts: {
-      p50Cost: 27929470642.62332,
-      p75Cost: 27929470642.62332,
-      p95Cost: 27929470642.62332,
-      p50Booms: 2,
-      p75Booms: 5,
-      p95Booms: 12,
-      availableSpares: 10,
-      requiredSpares: 7,
-      achievedProbability: 0.9315757371871694,
-      guaranteeMet: true,
-      expectedMeso: 27929470642.62332,
-      expectedBooms: 3.3952150792320746,
-      strategy: [
-        { star: 15, nextStar: 16, mode: 1 },
-        { star: 16, nextStar: 17, mode: 1 },
-        { star: 17, nextStar: 18, mode: 1 },
-        { star: 18, nextStar: 19, mode: 1 },
-        { star: 19, nextStar: 20, mode: 1 },
-        { star: 20, nextStar: 21, mode: 1 },
-        { star: 21, nextStar: 22, mode: 1 },
-      ],
-    },
-    notes: "Common pitched-boss catch-up comparison.",
+  createPresetStarforceProfile({
+    id: "recommended-sf-astra-22-23",
+    name: "Astra 22★ → 23★",
+    itemType: "secondary",
+    itemLevel: 200,
+    startStar: 22,
+    targetStar: 23,
+    isAstraSecondary: true,
+    costB: 23,
+    expectedBooms: 5.05,
   }),
-  createDefaultStarforceProfile({
-    id: "recommended-sf-21-22-armor-250",
-    name: "21★ → 22★ armor (250)",
-    itemLevel: 250,
-    startStar: 21,
-    targetStar: 22,
-    p50Cost: 12167945273.149042,
-    p75Cost: 12167945273.149042,
-    p95Cost: 12167945273.149042,
-    percentileCosts: {
-      p50Cost: 12167945273.149042,
-      p75Cost: 12167945273.149042,
-      p95Cost: 12167945273.149042,
-      p50Booms: 0,
-      p75Booms: 2,
-      p95Booms: 9,
-      availableSpares: 10,
-      requiredSpares: 4,
-      achievedProbability: 0.9659078318417984,
-      guaranteeMet: true,
-      expectedMeso: 12167945273.149042,
-      expectedBooms: 1.6985788156881816,
-      strategy: [
-        { star: 15, nextStar: 16, mode: 1 },
-        { star: 16, nextStar: 17, mode: 1 },
-        { star: 17, nextStar: 18, mode: 1 },
-        { star: 18, nextStar: 19, mode: 1 },
-        { star: 19, nextStar: 20, mode: 1 },
-        { star: 20, nextStar: 21, mode: 1 },
-        { star: 21, nextStar: 22, mode: 1 },
-      ],
-    },
-    notes: "Baseline full-SG 21 to 22 comparison.",
-  }),
-  createDefaultStarforceProfile({
-    id: "recommended-sf-22-23-accessory-160",
-    name: "22★ → 23★ accessory (160, 10 spares)",
+  createPresetStarforceProfile({
+    id: "recommended-sf-22-23-pitched-160",
+    name: "22★ → 23★ Pitched lv160",
     itemType: "accessory",
     itemLevel: 160,
     startStar: 22,
     targetStar: 23,
-    p50Cost: 9940980399.167988,
-    p75Cost: 9940980399.167988,
-    p95Cost: 9940980399.167988,
-    percentileCosts: {
-      p50Cost: 9940980399.167988,
-      p75Cost: 9940980399.167988,
-      p95Cost: 9940980399.167988,
-      p50Booms: 1,
-      p75Booms: 6,
-      p95Booms: 19,
-      availableSpares: 10,
-      requiredSpares: 10,
-      achievedProbability: 0.8517814579525262,
-      guaranteeMet: true,
-      expectedMeso: 9940980399.167988,
-      expectedBooms: 4.39850052694832,
-      strategy: [
-        { star: 15, nextStar: 16, mode: 2 },
-        { star: 16, nextStar: 17, mode: 2 },
-        { star: 17, nextStar: 18, mode: 2 },
-        { star: 18, nextStar: 19, mode: 1 },
-        { star: 19, nextStar: 20, mode: 1 },
-        { star: 20, nextStar: 21, mode: 2 },
-        { star: 21, nextStar: 22, mode: 1 },
-        { star: 22, nextStar: 23, mode: "Base" },
-      ],
-    },
+    spareCount: 0,
+    costB: 38.80376718165785,
+    expectedBooms: 1.0698412698412698,
+    achievedProbability: 0.4831288343558282,
+    guaranteeMet: false,
+    requiredSpares: 2,
+    strategy: "444/44/44",
   }),
-  createDefaultStarforceProfile({
-    id: "recommended-sf-22-23-armor-200",
-    name: "22★ → 23★ armor (200)",
+  createPresetStarforceProfile({
+    id: "recommended-sf-22-23-kalos-eternal-250-1114",
+    name: "22★ → 23★ Kalos Eternals (10 spares)",
+    itemLevel: 250,
+    startStar: 22,
+    targetStar: 23,
+    costB: 56,
+    expectedBooms: 4.39850052694832,
+    achievedProbability: 0.8517814579525262,
+    requiredSpares: 10,
+    strategy: "222/11/21",
+  }),
+  createPresetStarforceProfile({
+    id: "recommended-sf-22-23-limbo-eternal-250-1144",
+    name: "22★ → 23★ Limbo Eternals (5 spares)",
+    itemLevel: 250,
+    startStar: 22,
+    targetStar: 23,
+    spareCount: 5,
+    costB: 60,
+    expectedBooms: 2.342788017799678,
+    achievedProbability: 0.8511966258708026,
+    requiredSpares: 5,
+    strategy: "222/11/44",
+  }),
+  createPresetStarforceProfile({
+    id: "recommended-sf-astra-23-24",
+    name: "Astra 23★ → 24★",
+    itemType: "secondary",
+    itemLevel: 200,
+    startStar: 23,
+    targetStar: 24,
+    isAstraSecondary: true,
+    costB: 68,
+    expectedBooms: 15.38,
+  }),
+  createPresetStarforceProfile({
+    id: "recommended-sf-22-23-pitched-200",
+    name: "22★ → 23★ Pitched lv200",
+    itemType: "accessory",
     itemLevel: 200,
     startStar: 22,
     targetStar: 23,
-    p50Cost: 19415877852.824482,
-    p75Cost: 19415877852.824482,
-    p95Cost: 19415877852.824482,
-    percentileCosts: {
-      p50Cost: 19415877852.824482,
-      p75Cost: 19415877852.824482,
-      p95Cost: 19415877852.824482,
-      p50Booms: 1,
-      p75Booms: 6,
-      p95Booms: 19,
-      availableSpares: 10,
-      requiredSpares: 10,
-      achievedProbability: 0.8517814579525262,
-      guaranteeMet: true,
-      expectedMeso: 19415877852.824482,
-      expectedBooms: 4.39850052694832,
-      strategy: [
-        { star: 15, nextStar: 16, mode: 2 },
-        { star: 16, nextStar: 17, mode: 2 },
-        { star: 17, nextStar: 18, mode: 2 },
-        { star: 18, nextStar: 19, mode: 1 },
-        { star: 19, nextStar: 20, mode: 1 },
-        { star: 20, nextStar: 21, mode: 2 },
-        { star: 21, nextStar: 22, mode: 1 },
-        { star: 22, nextStar: 23, mode: "Base" },
-      ],
-    },
+    spareCount: 0,
+    costB: 75.78838853514739,
+    expectedBooms: 1.0698412698412698,
+    achievedProbability: 0.4831288343558282,
+    guaranteeMet: false,
+    requiredSpares: 2,
+    strategy: "444/44/44",
   }),
-  createDefaultStarforceProfile({
-    id: "recommended-sf-22-23-armor-250",
-    name: "22★ → 23★ armor (250)",
-    itemLevel: 250,
-    startStar: 22,
-    targetStar: 23,
-    p50Cost: 37921547764.26454,
-    p75Cost: 37921547764.26454,
-    p95Cost: 37921547764.26454,
-    percentileCosts: {
-      p50Cost: 37921547764.26454,
-      p75Cost: 37921547764.26454,
-      p95Cost: 37921547764.26454,
-      p50Booms: 1,
-      p75Booms: 6,
-      p95Booms: 19,
-      availableSpares: 10,
-      requiredSpares: 10,
-      achievedProbability: 0.8517814579525262,
-      guaranteeMet: true,
-      expectedMeso: 37921547764.26454,
-      expectedBooms: 4.39850052694832,
-      strategy: [
-        { star: 15, nextStar: 16, mode: 2 },
-        { star: 16, nextStar: 17, mode: 2 },
-        { star: 17, nextStar: 18, mode: 2 },
-        { star: 18, nextStar: 19, mode: 1 },
-        { star: 19, nextStar: 20, mode: 1 },
-        { star: 20, nextStar: 21, mode: 2 },
-        { star: 21, nextStar: 22, mode: 1 },
-        { star: 22, nextStar: 23, mode: "Base" },
-      ],
-    },
+  createPresetCubingProfile({
+    id: "recommended-cube-real-dp-heart",
+    name: "Real DP heart",
+    itemType: "heart",
+    itemLevel: 200,
+    target: "percStat+36",
+    targetLabel: "36%+ main stat",
+    statGains: { "Main Stat%": DEFAULT_DP_STAT_LINES },
+    costB: 31,
   }),
-  createDefaultStarforceProfile({
-    id: "recommended-sf-23-24-armor-250",
-    name: "23★ → 24★ armor (250)",
+  createPresetStarforceProfile({
+    id: "recommended-sf-astra-24-25",
+    name: "Astra 24★ → 25★",
+    itemType: "secondary",
+    itemLevel: 200,
+    startStar: 24,
+    targetStar: 25,
+    isAstraSecondary: true,
+    costB: 190,
+    expectedBooms: 41.6,
+  }),
+  createPresetCubingProfile({
+    id: "recommended-cube-emblem-double-prime-attack",
+    name: "DP emblem",
+    itemType: "emblem",
+    itemLevel: 200,
+    target: "percAtt+36",
+    targetLabel: "36%+ Attack/Magic Attack",
+    statGains: { "Attack%": DEFAULT_DP_ATTACK_LINES },
+    costB: 400,
+  }),
+  createPresetStarforceProfile({
+    id: "recommended-sf-23-24-kalos-eternal-250-1114",
+    name: "23★ → 24★ Kalos Eternals (10 spares)",
     itemLevel: 250,
     startStar: 23,
     targetStar: 24,
-    p50Cost: 373548836083.6242,
-    p75Cost: 373548836083.6242,
-    p95Cost: 373548836083.6242,
-    percentileCosts: {
-      p50Cost: 373548836083.6242,
-      p75Cost: 373548836083.6242,
-      p95Cost: 373548836083.6242,
-      p50Booms: 2,
-      p75Booms: 7,
-      p95Booms: 18,
-      availableSpares: 10,
-      requiredSpares: 10,
-      achievedProbability: 0.8505271185311204,
-      guaranteeMet: true,
-      expectedMeso: 373548836083.6242,
-      expectedBooms: 4.6888828898093555,
-      strategy: [
-        { star: 15, nextStar: 16, mode: 4 },
-        { star: 16, nextStar: 17, mode: 4 },
-        { star: 17, nextStar: 18, mode: 4 },
-        { star: 18, nextStar: 19, mode: 3 },
-        { star: 19, nextStar: 20, mode: 3 },
-        { star: 20, nextStar: 21, mode: 4 },
-        { star: 21, nextStar: 22, mode: 4 },
-        { star: 22, nextStar: 23, mode: "Base" },
-        { star: 23, nextStar: 24, mode: "Base" },
-      ],
-    },
+    costB: 217,
+    expectedBooms: 4.6888828898093555,
+    achievedProbability: 0.8505271185311204,
+    requiredSpares: 10,
+    strategy: "444/33/44",
   }),
-  createDefaultStarforceProfile({
-    id: "recommended-sf-24-25-armor-250",
-    name: "24★ → 25★ armor (250)",
+  createPresetStarforceProfile({
+    id: "recommended-sf-23-24-pitched-160-0-spares",
+    name: "23★ → 24★ Pitched lv160",
+    itemType: "accessory",
+    itemLevel: 160,
+    startStar: 23,
+    targetStar: 24,
+    spareCount: 0,
+    costB: 110.74566861414293,
+    expectedBooms: 3.5285865457294023,
+    achievedProbability: 0.36971830985915494,
+    guaranteeMet: false,
+    requiredSpares: 8,
+    strategy: "444/44/44",
+  }),
+  createPresetStarforceProfile({
+    id: "recommended-sf-23-24-limbo-eternal-250-1144",
+    name: "23★ → 24★ Limbo Eternals (5 spares)",
+    itemLevel: 250,
+    startStar: 23,
+    targetStar: 24,
+    spareCount: 5,
+    costB: 245,
+    expectedBooms: 3.5285865457294023,
+    achievedProbability: 0.7643588444794145,
+    guaranteeMet: false,
+    requiredSpares: 8,
+    strategy: "444/44/44",
+  }),
+  createPresetCubingProfile({
+    id: "recommended-cube-weapon-double-prime-attack",
+    name: "DP weapon",
+    itemType: "weapon",
+    itemLevel: 200,
+    target: "percAtt+36",
+    targetLabel: "36%+ Attack/Magic Attack",
+    statGains: { "Attack%": DEFAULT_DP_ATTACK_LINES },
+    costB: 600,
+  }),
+  createPresetCubingProfile({
+    id: "recommended-cube-secondary-double-prime-attack",
+    name: "DP secondary",
+    itemType: "secondary",
+    itemLevel: 140,
+    target: "percAtt+36",
+    targetLabel: "36%+ Attack/Magic Attack",
+    statGains: { "Attack%": DEFAULT_DP_ATTACK_LINES },
+    costB: 800,
+  }),
+  createPresetStarforceProfile({
+    id: "recommended-sf-23-24-pitched-200-0-spares",
+    name: "23★ → 24★ Pitched lv200",
+    itemType: "accessory",
+    itemLevel: 200,
+    startStar: 23,
+    targetStar: 24,
+    spareCount: 0,
+    costB: 216.29953356777884,
+    expectedBooms: 3.5285865457294023,
+    achievedProbability: 0.36971830985915494,
+    guaranteeMet: false,
+    requiredSpares: 8,
+    strategy: "444/44/44",
+  }),
+  createPresetStarforceProfile({
+    id: "recommended-sf-astra-25-26",
+    name: "Astra 25★ → 26★",
+    itemType: "secondary",
+    itemLevel: 200,
+    startStar: 25,
+    targetStar: 26,
+    isAstraSecondary: true,
+    costB: 500,
+    expectedBooms: 112.52,
+  }),
+  createPresetStarforceProfile({
+    id: "recommended-sf-24-25-kalos-eternal-250-1114",
+    name: "24★ → 25★ Kalos Eternals (10 spares)",
     itemLevel: 250,
     startStar: 24,
     targetStar: 25,
-    p50Cost: 1544036668246.853,
-    p75Cost: 1544036668246.853,
-    p95Cost: 1544036668246.853,
-    percentileCosts: {
-      p50Cost: 1544036668246.853,
-      p75Cost: 1544036668246.853,
-      p95Cost: 1544036668246.853,
-      p50Booms: 4,
-      p75Booms: 14,
-      p95Booms: 38,
-      availableSpares: 10,
-      requiredSpares: 22,
-      achievedProbability: 0.6817129248432829,
-      guaranteeMet: false,
-      expectedMeso: 1544036668246.853,
-      expectedBooms: 9.54398646654429,
-      strategy: [
-        { star: 15, nextStar: 16, mode: 1 },
-        { star: 16, nextStar: 17, mode: 1 },
-        { star: 17, nextStar: 18, mode: 4 },
-        { star: 18, nextStar: 19, mode: 4 },
-        { star: 19, nextStar: 20, mode: 4 },
-        { star: 20, nextStar: 21, mode: 4 },
-        { star: 21, nextStar: 22, mode: 4 },
-        { star: 22, nextStar: 23, mode: "Base" },
-        { star: 23, nextStar: 24, mode: "Base" },
-        { star: 24, nextStar: 25, mode: "Base" },
-      ],
-    },
+    costB: 585,
+    expectedBooms: 9.54398646654429,
+    achievedProbability: 0.6817129248432829,
+    guaranteeMet: false,
+    requiredSpares: 22,
+    strategy: "444/44/44",
   }),
-  createDefaultCubingProfile({
-    id: "recommended-cube-emblem-double-prime-attack",
-    name: "Emblem: 33% → double-prime attack",
-    itemType: "emblem",
-    target: "percAtt+36",
-    targetLabel: "36%+ Attack/Magic Attack",
-    statGains: { "Attack%": 3 },
-    p50Cost: 276930750000,
-    p75Cost: 553861500000,
-    p95Cost: 757950000000,
-    percentileCosts: {
-      p50Cost: 276930750000,
-      p75Cost: 553861500000,
-      p95Cost: 757950000000,
-      p85Cost: 757950000000,
-      p85Cubes: 32600,
-      p95Cubes: 32600,
-      meanCubes: 17183.96203901819,
-      expectedCost: 399527117407.173,
-      strategy: "percAtt+36",
-      probability: 0.00004005498764838471,
-      cubeCost: 22000000,
-      revealCost: 1250000,
-    },
-  }),
-  createDefaultCubingProfile({
-    id: "recommended-cube-secondary-double-prime-attack",
-    name: "Secondary: 33% → double-prime attack",
-    itemType: "secondary",
-    target: "percAtt+36",
-    targetLabel: "36%+ Attack/Magic Attack",
-    statGains: { "Attack%": 3 },
-    p50Cost: 637724250000,
-    p75Cost: 1275448500000,
-    p95Cost: 1745400750000,
-    percentileCosts: {
-      p50Cost: 637724250000,
-      p75Cost: 1275448500000,
-      p95Cost: 1745400750000,
-      p85Cost: 1745400750000,
-      p85Cubes: 75071,
-      p95Cubes: 75071,
-      meanCubes: 39571.48362950729,
-      expectedCost: 920036994386.0444,
-      strategy: "percAtt+36",
-      probability: 0.000017397021003378766,
-      cubeCost: 22000000,
-      revealCost: 1250000,
-    },
-  }),
-  createDefaultCubingProfile({
-    id: "recommended-cube-weapon-23-40",
-    name: "Weapon: 33% attack → 23/40",
-    itemType: "weapon",
-    target: "percAtt+23&percBoss+40",
-    targetLabel: "23%+ Attack/Magic Attack and 40%+ Boss",
-    statGains: { "Attack%": -10, "Boss Damage": 40 },
-    p50Cost: 201833250000,
-    p75Cost: 403666500000,
-    p95Cost: 552396750000,
-    percentileCosts: {
-      p50Cost: 201833250000,
-      p75Cost: 403666500000,
-      p95Cost: 552396750000,
-      p85Cost: 552396750000,
-      p85Cubes: 23759,
-      p95Cubes: 23759,
-      meanCubes: 12523.941934357577,
-      expectedCost: 291181649973.81366,
-      strategy: "percAtt+23&percBoss+40",
-      probability: 0.00005495827071528976,
-      cubeCost: 22000000,
-      revealCost: 1250000,
-    },
-  }),
-  createDefaultCubingProfile({
-    id: "recommended-cube-gloves-triple-crit",
-    name: "Gloves: 2L crit+stat → 3L crit",
-    itemType: "gloves",
-    target: "lineCritDamage+3",
-    targetLabel: "3L Crit Damage",
-    statGains: { "Critical Dmg": 8, "Main Stat%": -12 },
-    p50Cost: 1611573750000,
-    p75Cost: 3223124250000,
-    p95Cost: 4410804000000,
-    percentileCosts: {
-      p50Cost: 1611573750000,
-      p75Cost: 3223124250000,
-      p95Cost: 4410804000000,
-      p85Cost: 4410804000000,
-      p85Cubes: 189712,
-      p95Cubes: 189712,
-      meanCubes: 99999.99999999999,
-      expectedCost: 2324999999999.9995,
-      strategy: "lineCritDamage+3",
-      probability: 0.000006883508244732129,
-      cubeCost: 22000000,
-      revealCost: 1250000,
-    },
-  }),
-  createDefaultCubingProfile({
-    id: "recommended-cube-hat-minus-4-stat",
-    name: "Hat: -4s cooldown + stat",
-    itemType: "hat",
-    target: "secCooldown+4&lineStat+1",
-    targetLabel: "-4s Cooldown + stat",
-    statGains: { "Main Stat%": 12 },
-    p50Cost: 150753000000,
-    p75Cost: 301482750000,
-    p95Cost: 412571250000,
-    percentileCosts: {
-      p50Cost: 150753000000,
-      p75Cost: 301482750000,
-      p95Cost: 412571250000,
-      p85Cost: 412571250000,
-      p85Cubes: 17745,
-      p95Cubes: 17745,
-      meanCubes: 9353.694454601527,
-      expectedCost: 217473396069.4855,
-      strategy: "secCooldown+4&lineStat+1",
-      probability: 0.00007355640076306622,
-      cubeCost: 22000000,
-      revealCost: 1250000,
-    },
-    notes: "Cooldown FD is not included; edit stat changes if your class values CDR.",
-  }),
-  createDefaultCubingProfile({
-    id: "recommended-cube-armor-double-prime-stat",
-    name: "Armor: 3L stat → double-prime stat",
-    itemType: "top",
-    target: "percStat+36",
-    targetLabel: "36%+ main stat",
-    statGains: { "Main Stat%": 3 },
-    p50Cost: 70005750000,
-    p75Cost: 140011500000,
-    p95Cost: 191603250000,
-    percentileCosts: {
-      p50Cost: 70005750000,
-      p75Cost: 140011500000,
-      p95Cost: 191603250000,
-      p85Cost: 191603250000,
-      p85Cubes: 8241,
-      p95Cubes: 8241,
-      meanCubes: 4344.398588503615,
-      expectedCost: 101007267182.70906,
-      strategy: "percStat+36",
-      probability: 0.00015866553314069468,
-      cubeCost: 22000000,
-      revealCost: 1250000,
-    },
+  createPresetStarforceProfile({
+    id: "recommended-sf-24-25-limbo-eternal-250-1144",
+    name: "24★ → 25★ Limbo Eternals (5 spares)",
+    itemLevel: 250,
+    startStar: 24,
+    targetStar: 25,
+    spareCount: 5,
+    costB: 640,
+    expectedBooms: 9.54398646654429,
+    achievedProbability: 0.5521043473310309,
+    guaranteeMet: false,
+    requiredSpares: 22,
+    strategy: "444/44/44",
   }),
 ]);
-
-const DEFAULT_PROFILE_REPLACEMENTS = Object.freeze({
-  "recommended-sf-22-23-armor-160": "recommended-sf-22-23-accessory-160",
-});
 
 let recommendedProfilesCache = null;
 
@@ -571,6 +524,20 @@ function parsePositiveNumber(value, label) {
 
 function getAdditionalMesoCost(source) {
   return parseNumber(source?.additionalMesoCost ?? 0, "additional meso cost");
+}
+
+function isAstraSecondarySource(source = {}) {
+  return Boolean(source.isAstraSecondary) && String(source.itemType ?? "").toLowerCase() === "secondary";
+}
+
+function getEffectiveStarforceCostSource(source = {}) {
+  return {
+    ...source,
+    itemLevel: isAstraSecondarySource(source) ? 200 : source.itemLevel,
+    replacementCostPerBoom: isAstraSecondarySource(source)
+      ? ASTRA_SECONDARY_REPLACEMENT_COST
+      : 0,
+  };
 }
 
 export function applyAdditionalMesoCost(costs, additionalMesoCost = 0) {
@@ -825,6 +792,24 @@ export function validateStatEquivalencePresetInput(input) {
   };
 }
 
+export function validateProfilePresetInput(input) {
+  const name = String(input.name ?? "").trim();
+  if (!name) {
+    throw new Error("Preset name is required");
+  }
+  if (!Array.isArray(input.profiles)) {
+    throw new Error("Preset profiles are required");
+  }
+
+  return {
+    id: getId(input, "profile-preset"),
+    name,
+    profiles: input.profiles.map(validateProfileInput).map(cloneProfile),
+    createdAt: String(input.createdAt ?? new Date().toISOString()),
+    updatedAt: String(input.updatedAt ?? new Date().toISOString()),
+  };
+}
+
 export function calculateFdGain(statGains, statEquivalence) {
   const validStatGains = validateStatGains(statGains, statEquivalence.className);
   const fdPerUnitByStat = getFdPerUnitByStat(statEquivalence);
@@ -983,18 +968,28 @@ export function refreshStarforceProfileCosts(profiles) {
     }
 
     const additionalMesoCost = getAdditionalMesoCost(validProfile.source);
+    const effectiveSource = getEffectiveStarforceCostSource(validProfile.source);
+    const isAstraSecondary = isAstraSecondarySource(validProfile.source);
     const costs = applyAdditionalMesoCost(
-      calculateStarforceProfileCosts({
-        itemLevel: Number(validProfile.source.itemLevel),
-        startStar: Number(validProfile.source.startStar),
-        targetStar: Number(validProfile.source.targetStar),
-        spareCount:
-          validProfile.source.spareCount === undefined
-            ? undefined
-            : Number(validProfile.source.spareCount),
-        hitProbability: Number(validProfile.source.hitProbability),
-        events: validProfile.source.events ?? {},
-      }),
+      isAstraSecondary
+        ? calculateAstraStarforceProfileCosts({
+            startStar: Number(validProfile.source.startStar),
+            targetStar: Number(validProfile.source.targetStar),
+            hitProbability: Number(validProfile.source.hitProbability),
+            events: validProfile.source.events ?? {},
+          })
+        : calculateStarforceProfileCosts({
+            itemLevel: Number(effectiveSource.itemLevel),
+            startStar: Number(validProfile.source.startStar),
+            targetStar: Number(validProfile.source.targetStar),
+            spareCount:
+              validProfile.source.spareCount === undefined
+                ? undefined
+                : Number(validProfile.source.spareCount),
+            hitProbability: Number(validProfile.source.hitProbability),
+            events: validProfile.source.events ?? {},
+            replacementCostPerBoom: effectiveSource.replacementCostPerBoom,
+          }),
       additionalMesoCost,
     );
 
@@ -1019,15 +1014,6 @@ function getDefaultProfiles() {
 
 export function getRecommendedProfiles() {
   return getDefaultProfiles();
-}
-
-function migrateProfileInput(profile) {
-  const replacementId = DEFAULT_PROFILE_REPLACEMENTS[profile?.id];
-  if (!replacementId) {
-    return profile;
-  }
-
-  return DEFAULT_PROFILE_INPUTS.find((candidate) => candidate.id === replacementId) ?? profile;
 }
 
 export function loadStatEquivalence(storage = getDefaultStorage()) {
@@ -1074,6 +1060,29 @@ export function saveStatEquivalencePresets(storage = getDefaultStorage(), preset
   );
 }
 
+export function loadProfilePresets(storage = getDefaultStorage()) {
+  const parsed = readStoredJson(storage, PROFILE_PRESET_STORAGE_KEY, []);
+  if (!Array.isArray(parsed)) {
+    return [];
+  }
+
+  return parsed.flatMap((preset) => {
+    try {
+      return [validateProfilePresetInput(preset)];
+    } catch {
+      return [];
+    }
+  });
+}
+
+export function saveProfilePresets(storage = getDefaultStorage(), presets) {
+  writeStoredJson(
+    storage,
+    PROFILE_PRESET_STORAGE_KEY,
+    presets.map(validateProfilePresetInput),
+  );
+}
+
 export function loadProfiles(storage = getDefaultStorage()) {
   const raw = readStoredRaw(storage, PROFILE_STORAGE_KEY);
   if (raw === null) {
@@ -1093,7 +1102,7 @@ export function loadProfiles(storage = getDefaultStorage()) {
 
   return parsed.flatMap((profile) => {
     try {
-      return [validateProfileInput(migrateProfileInput(profile))];
+      return [validateProfileInput(profile)];
     } catch {
       return [];
     }

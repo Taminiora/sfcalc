@@ -80,6 +80,41 @@ const ARMOR_HIGH_STAR_DELTAS = Object.freeze({
     200: { attack: 25 },
     250: { attack: 27 },
   },
+  26: {
+    138: { attack: 22 },
+    150: { attack: 23 },
+    160: { attack: 24 },
+    200: { attack: 26 },
+    250: { attack: 28 },
+  },
+  27: {
+    138: { attack: 23 },
+    150: { attack: 24 },
+    160: { attack: 25 },
+    200: { attack: 27 },
+    250: { attack: 29 },
+  },
+  28: {
+    138: { attack: 24 },
+    150: { attack: 25 },
+    160: { attack: 26 },
+    200: { attack: 28 },
+    250: { attack: 30 },
+  },
+  29: {
+    138: { attack: 25 },
+    150: { attack: 26 },
+    160: { attack: 27 },
+    200: { attack: 29 },
+    250: { attack: 31 },
+  },
+  30: {
+    138: { attack: 26 },
+    150: { attack: 27 },
+    160: { attack: 28 },
+    200: { attack: 30 },
+    250: { attack: 32 },
+  },
 });
 
 const WEAPON_HIGH_STAR_DELTAS = Object.freeze({
@@ -183,6 +218,10 @@ function addGain(gains, stat, value = 0) {
 
 function getDelta({ itemType, itemLevel, star }) {
   const normalizedType = String(itemType ?? "").toLowerCase();
+  if (normalizedType === "astra_secondary") {
+    return getDelta({ itemType: "armor", itemLevel: 200, star });
+  }
+
   if (normalizedType === "weapon") {
     const bracket = getBracket(itemLevel, WEAPON_BRACKETS);
     return {
@@ -200,7 +239,13 @@ function getDelta({ itemType, itemLevel, star }) {
   };
 }
 
-export function calculateStarforceStatGains({ itemType, itemLevel, startStar, targetStar }) {
+export function calculateStarforceStatGains({
+  itemType,
+  itemLevel,
+  startStar,
+  targetStar,
+  isAstraSecondary = false,
+}) {
   if (!Number.isInteger(Number(startStar)) || !Number.isInteger(Number(targetStar))) {
     throw new Error("Start star and target star must be integers");
   }
@@ -209,8 +254,10 @@ export function calculateStarforceStatGains({ itemType, itemLevel, startStar, ta
   }
 
   const gains = {};
+  const normalizedItemType =
+    itemType === "secondary" && isAstraSecondary ? "astra_secondary" : itemType;
   for (let star = Number(startStar) + 1; star <= Number(targetStar); star += 1) {
-    const delta = getDelta({ itemType, itemLevel, star });
+    const delta = getDelta({ itemType: normalizedItemType, itemLevel, star });
     addGain(gains, ATTACK, delta.attack);
     addGain(gains, CLASS_STAT, delta.classStat);
   }

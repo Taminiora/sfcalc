@@ -1,5 +1,5 @@
 const MIN_STAR = 0;
-const MAX_TARGET_STAR = 25;
+const MAX_TARGET_STAR = 30;
 
 const BASE_PROBABILITIES = {
   0: [0.95, 0],
@@ -20,6 +20,11 @@ const BASE_PROBABILITIES = {
   22: [0.15, 0.2],
   23: [0.1, 0.2],
   24: [0.1, 0.2],
+  25: [0.1, 0.2],
+  26: [0.07, 0.2],
+  27: [0.05, 0.2],
+  28: [0.03, 0.2],
+  29: [0.01, 0.2],
 };
 
 export const RESTORE_LEVEL = {
@@ -33,6 +38,11 @@ export const RESTORE_LEVEL = {
   22: 17,
   23: 19,
   24: 19,
+  25: 19,
+  26: 20,
+  27: 20,
+  28: 20,
+  29: 20,
 };
 
 export const TIER_TABLE = {
@@ -106,6 +116,11 @@ const COST_FORMULAS = {
   22: (level) => 100 * Math.round(10 + (level ** 3 * 23 ** 2.7) / 20000),
   23: (level) => 100 * Math.round(10 + (level ** 3 * 24 ** 2.7) / 20000),
   24: (level) => 100 * Math.round(10 + (level ** 3 * 25 ** 2.7) / 20000),
+  25: (level) => 100 * Math.round(10 + (level ** 3 * 26 ** 2.7) / 20000),
+  26: (level) => 100 * Math.round(10 + (level ** 3 * 27 ** 2.7) / 20000),
+  27: (level) => 100 * Math.round(10 + (level ** 3 * 28 ** 2.7) / 20000),
+  28: (level) => 100 * Math.round(10 + (level ** 3 * 29 ** 2.7) / 20000),
+  29: (level) => 100 * Math.round(10 + (level ** 3 * 30 ** 2.7) / 20000),
 };
 
 function assertFiniteNumber(value, label) {

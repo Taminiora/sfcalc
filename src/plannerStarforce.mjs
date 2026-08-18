@@ -77,6 +77,7 @@ function getOptimizeStarforceCacheKey({
   benchmarkFdPerMeso,
   hitProbability,
   events,
+  replacementCostPerBoom = 0,
 }) {
   const normalizedEvents = normalizeEvents(events);
   return JSON.stringify([
@@ -89,6 +90,7 @@ function getOptimizeStarforceCacheKey({
     normalizedEvents.starCatch,
     normalizedEvents.costReduction30,
     normalizedEvents.boomReduction30,
+    replacementCostPerBoom,
   ]);
 }
 
@@ -118,6 +120,7 @@ export function optimizeStarforce({
   benchmarkFdPerMeso,
   hitProbability,
   events,
+  replacementCostPerBoom = 0,
 }) {
   validateStarRange({ itemLevel, startStar, targetStar });
   assertFiniteNumber(sfFdGain, "SF FD gain");
@@ -133,6 +136,7 @@ export function optimizeStarforce({
     benchmarkFdPerMeso,
     hitProbability,
     events: normalizedEvents,
+    replacementCostPerBoom,
   });
   const cachedResult = readOptimizeStarforceCache(cacheKey);
   if (cachedResult) {
@@ -147,8 +151,11 @@ export function optimizeStarforce({
     benchmarkFdPerMeso,
     hitProbability,
     events: normalizedEvents,
+    replacementCostPerBoom,
   });
-  const fdPerMeso = sfFdGain / bestPolicy.expectedMeso;
+  const totalExpectedCost =
+    bestPolicy.expectedMeso + bestPolicy.expectedBooms * replacementCostPerBoom;
+  const fdPerMeso = sfFdGain / totalExpectedCost;
 
   const result = {
     startStar,
@@ -157,8 +164,9 @@ export function optimizeStarforce({
     availableSpares: bestPolicy.availableSpares,
     sfFdGain,
     expectedMeso: bestPolicy.expectedMeso,
+    expectedReplacementCost: bestPolicy.expectedBooms * replacementCostPerBoom,
     expectedBooms: bestPolicy.expectedBooms,
-    totalExpectedCost: bestPolicy.expectedMeso,
+    totalExpectedCost,
     fdPerMeso,
     benchmarkFdPerMeso,
     meetsBenchmark: fdPerMeso >= benchmarkFdPerMeso,
@@ -179,6 +187,7 @@ export function calculateStarforceProfileCosts({
   spareCount,
   hitProbability,
   events,
+  replacementCostPerBoom = 0,
 }) {
   validateStarRange({ itemLevel, startStar, targetStar });
   validateHitProbability(hitProbability);
@@ -194,6 +203,7 @@ export function calculateStarforceProfileCosts({
           targetStar,
           hitProbability,
           events,
+          replacementCostPerBoom,
         })
       : getBestPolicyForSpareCount({
           itemLevel,
@@ -202,15 +212,21 @@ export function calculateStarforceProfileCosts({
           spareCount,
           hitProbability,
           events,
+          replacementCostPerBoom,
         });
   const p50Booms = getBoomPercentile(bestPolicy.boomDistribution, 0.5);
   const p75Booms = getBoomPercentile(bestPolicy.boomDistribution, 0.75);
   const p95Booms = getBoomPercentile(bestPolicy.boomDistribution, 0.95);
+  const expectedReplacementCost = bestPolicy.expectedBooms * replacementCostPerBoom;
+  const expectedTotalCost = bestPolicy.expectedMeso + expectedReplacementCost;
+  const targetOddsCost = bestPolicy.expectedMeso + bestPolicy.requiredSpares * replacementCostPerBoom;
+  const reportedExpectedCost = replacementCostPerBoom > 0 ? expectedTotalCost : bestPolicy.expectedMeso;
 
   return {
-    p50Cost: bestPolicy.expectedMeso,
-    p75Cost: bestPolicy.expectedMeso,
-    p95Cost: bestPolicy.expectedMeso,
+    p50Cost: reportedExpectedCost,
+    p75Cost: reportedExpectedCost,
+    p95Cost: reportedExpectedCost,
+    p85Cost: replacementCostPerBoom > 0 ? targetOddsCost : bestPolicy.expectedMeso,
     p50Booms,
     p75Booms,
     p95Booms,
@@ -219,6 +235,8 @@ export function calculateStarforceProfileCosts({
     achievedProbability: bestPolicy.achievedProbability,
     guaranteeMet: bestPolicy.guaranteeMet,
     expectedMeso: bestPolicy.expectedMeso,
+    expectedReplacementCost,
+    expectedTotalCost,
     expectedBooms: bestPolicy.expectedBooms,
     strategy: formatStrategyRows(bestPolicy.rows),
   };

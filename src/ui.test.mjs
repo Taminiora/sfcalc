@@ -29,7 +29,7 @@ test("planner uses stable static asset URLs for production hosting", () => {
   const script = readFileSync(new URL("./planner.mjs", import.meta.url), "utf8");
 
   assert.match(html, /href="\.\/src\/styles\.css\?v=\d{8}-[a-z0-9-]+"/);
-  assert.match(html, /src="\.\/src\/planner\.mjs"/);
+  assert.match(html, /src="\.\/src\/planner\.mjs\?v=\d{8}-[a-z0-9-]+"/);
   assert.doesNotMatch(html, /\?(?:fresh|reload)=/);
   assert.equal(script.includes('from "./cubing.mjs?v=20260617-cd-hat-options"'), true);
   assert.equal(script.includes('from "./strategyFormat.mjs?v=20260617-strategy-display"'), true);
@@ -317,19 +317,28 @@ test("planner saved upgrades show cost and strategy without p50/p75 controls", (
   assert.equal(html.includes("benchmark-percentile"), false);
   assert.equal(html.includes("<th>Strategy</th>"), true);
   assert.equal(html.includes("Expected"), true);
-  assert.equal(html.includes("85% odds"), true);
+  assert.equal(html.includes("Target cost"), true);
+  assert.equal(html.includes("% odds"), false);
+  assert.equal(html.includes("85% odds"), false);
   assert.equal(html.includes("<th>Spare count</th>"), false);
   assert.equal(html.includes("<th>Cost</th>"), false);
   assert.equal(html.includes("<th>p95 meso</th>"), false);
   assert.equal(script.includes("formatSavedExpected(profile)"), true);
   assert.equal(script.includes("formatSavedTargetOdds(profile)"), true);
   assert.equal(script.includes("targetOddsMeso"), true);
-  assert.equal(script.includes("${formatInteger(requiredSpares)} spares"), true);
+  assert.equal(script.includes("availableUnits"), true);
+  assert.equal(script.includes("function parseOptionalNumber(value)"), true);
+  assert.equal(script.includes("value === null || value === undefined ? NaN : Number(value)"), true);
+  assert.equal(script.includes("below ${formatPercent(targetProbability)} target"), true);
+  assert.match(css, /\.warning-note\s*\{[\s\S]*?color: var\(--danger\)/s);
+  assert.equal(script.includes("replacement booms"), true);
+  assert.equal(script.includes("spare"), true);
   assert.equal(script.includes("Saved. Strategy:"), true);
   assert.equal(script.includes("source?.percentileCosts?.strategy"), true);
   assert.equal(script.includes("showBaseSuffix: false"), true);
   assert.equal(script.includes("formatSavedSpareCount(profile)"), false);
   assert.equal(script.includes("spareCount: Number(profileFields.spareCount.value)"), true);
+  assert.equal(script.includes("sfSource.isAstraSecondary"), true);
   assert.equal(script.includes("spareCount: Number(optimizerFields.spareCount.value)"), false);
   assert.equal(html.includes("saved-upgrades-table"), true);
   assert.match(css, /\.saved-upgrades-table\s*\{[^}]*min-width: 0/s);
@@ -380,31 +389,51 @@ test("planner saved upgrade actions stack clone and edit with compact delete", (
   assert.match(css, /\.icon-danger-button\s*\{[\s\S]*?border: 0/s);
 });
 
-test("planner can clear all saved upgrades with confirmation", () => {
+test("planner keeps edited upgrades loaded after saving changes", () => {
+  const script = readFileSync(new URL("./planner.mjs", import.meta.url), "utf8");
+
+  assert.equal(script.includes("const didEditProfile = Boolean(editingId);"), true);
+  assert.equal(script.includes("profiles = didEditProfile"), true);
+  assert.equal(script.includes("? profiles.map"), true);
+  assert.equal(script.includes("fillProfileForm(profile);"), true);
+  assert.equal(script.includes("didEditProfile ? `Updated. Strategy:"), true);
+});
+
+test("planner can save, load, delete, and clear saved-upgrade presets", () => {
   const html = readFileSync(new URL("../planner.html", import.meta.url), "utf8");
   const script = readFileSync(new URL("./planner.mjs", import.meta.url), "utf8");
 
   assert.equal(html.includes('id="profile-clear-all"'), true);
-  assert.equal(html.includes('id="profile-restore-recommended"'), true);
+  assert.equal(html.includes('id="profile-preset-select"'), true);
+  assert.equal(html.includes('id="profile-preset-name"'), true);
+  assert.equal(html.includes('id="profile-preset-save"'), true);
+  assert.equal(html.includes('id="profile-preset-load"'), true);
+  assert.equal(html.includes('id="profile-preset-delete"'), true);
   assert.equal(html.includes("Clear saved upgrades"), true);
-  assert.equal(html.includes("Restore recommended"), true);
+  assert.equal(html.includes("Save as preset"), true);
   assert.equal(script.includes('const profileClearAll = document.querySelector("#profile-clear-all")'), true);
-  assert.equal(
-    script.includes('const profileRestoreRecommended = document.querySelector("#profile-restore-recommended")'),
-    true,
-  );
+  assert.equal(script.includes('const profilePresetSelect = document.querySelector("#profile-preset-select")'), true);
+  assert.equal(script.includes('const profilePresetName = document.querySelector("#profile-preset-name")'), true);
+  assert.equal(script.includes('const profilePresetSave = document.querySelector("#profile-preset-save")'), true);
+  assert.equal(script.includes('const profilePresetLoad = document.querySelector("#profile-preset-load")'), true);
+  assert.equal(script.includes('const profilePresetDelete = document.querySelector("#profile-preset-delete")'), true);
+  assert.equal(script.includes("loadProfilePresets()"), true);
+  assert.equal(script.includes("saveProfilePresets(undefined, profilePresets);"), true);
+  assert.equal(script.includes("function renderProfilePresets("), true);
   assert.equal(script.includes("profileClearAll.disabled = metrics.length === 0"), true);
+  assert.equal(script.includes('profilePresetDelete.disabled = profilePresetSelect.value === "recommended"'), true);
   assert.equal(script.includes("window.confirm"), true);
   assert.equal(script.includes("Clear all saved upgrades?"), true);
-  assert.equal(script.includes("Replace saved upgrades with the recommended starter list?"), true);
+  assert.equal(script.includes("Replace saved upgrades with"), true);
+  assert.equal(script.includes("Overwrite preset"), true);
+  assert.equal(script.includes("Delete preset"), true);
+  assert.equal(script.includes("Recommended is reserved for the built-in preset."), true);
   assert.equal(script.includes("getRecommendedProfiles()"), true);
   assert.equal(script.includes("profiles = [];"), true);
   assert.equal(script.includes("saveProfiles(undefined, profiles);"), true);
   assert.equal(script.includes("setMessage(profileMessage, \"Cleared saved upgrades.\")"), true);
-  assert.equal(
-    script.includes("setMessage(profileMessage, \"Restored recommended saved upgrades.\")"),
-    true,
-  );
+  assert.equal(script.includes("Saved preset"), true);
+  assert.equal(script.includes("Loaded preset"), true);
 });
 
 test("planner refreshes saved upgrade efficiency when manual stat values change", () => {
@@ -468,7 +497,8 @@ test("planner optimizer includes wiki star-force stat gains in FD gain", () => {
 
   assert.equal(script.includes("calculateStarforceFdGain"), true);
   assert.equal(script.includes("calculateStarforceFdBreakdown"), true);
-  assert.equal(script.includes("itemType: optimizerFields.itemType.value"), true);
+  assert.equal(script.includes("const optimizerSource = {"), true);
+  assert.equal(script.includes("...getStarforceSourceFromFields(optimizerFields)"), true);
   assert.equal(script.includes("statGains: readStatGains(optimizerStatGains)"), true);
   assert.equal(script.includes('const statBreakdownRows = document.querySelector("#stat-breakdown-rows")'), true);
   assert.equal(script.includes("renderStatBreakdown(statBreakdown)"), true);
@@ -497,7 +527,7 @@ test("planner optimizer says when the cheapest strategy cannot compete", () => {
   const script = readFileSync(new URL("./planner.mjs", import.meta.url), "utf8");
 
   assert.equal(script.includes("cannot compete with"), true);
-  assert.equal(script.includes("Keep ${formatInteger(result.requiredSpares)} spares"), true);
+  assert.equal(script.includes("Plan for ${formatInteger(requiredUnits)} ${requiredUnitLabel}"), true);
 });
 
 test("planner recommendation shows aggregate expected booms only", () => {
@@ -538,14 +568,28 @@ test("planner keeps save-upgrade actions compact beside wide saved tables", () =
 test("planner accepts item type for saved and optimized SF targets", () => {
   const html = readFileSync(new URL("../planner.html", import.meta.url), "utf8");
   const script = readFileSync(new URL("./planner.mjs", import.meta.url), "utf8");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
 
   assert.equal(html.includes("profile-item-type"), true);
   assert.equal(html.includes("optimizer-item-type"), true);
+  assert.equal(html.includes("profile-astra-secondary"), true);
+  assert.equal(html.includes("optimizer-astra-secondary"), true);
+  assert.equal(html.includes('id="profile-astra-option"'), true);
+  assert.equal(html.includes('id="optimizer-astra-option"'), true);
+  assert.equal(html.includes("astra-option hidden"), true);
+  assert.equal(html.includes("Astra secondary"), true);
   assert.equal(html.includes("<span>Item type</span>"), true);
   assert.equal(html.includes('<option value="weapon">Weapon</option>'), true);
   assert.equal(script.includes("itemType: document.querySelector"), true);
-  assert.equal(script.includes("itemType: profileFields.itemType.value"), true);
+  assert.equal(script.includes("function getStarforceSourceFromFields(fields)"), true);
+  assert.equal(script.includes("isAstraSecondary: true"), true);
+  assert.equal(script.includes("ASTRA_SECONDARY_REPLACEMENT_COST"), true);
   assert.equal(script.includes("profile.source?.itemType"), true);
+  assert.equal(script.includes("astraOption: document.querySelector"), true);
+  assert.equal(script.includes('fields.astraOption.classList.toggle("hidden", !isSecondary)'), true);
+  assert.match(css, /\.astra-option\s*\{[\s\S]*?margin-top: 12px/s);
+  assert.match(css, /\.astra-option\s*\{[\s\S]*?margin-bottom: 16px/s);
+  assert.match(css, /\.astra-option\s*\{[\s\S]*?max-width: max-content/s);
 });
 
 test("planner uses compact columns for bounded numeric SF inputs", () => {

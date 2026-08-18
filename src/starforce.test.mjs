@@ -74,3 +74,18 @@ test("validates star ranges", () => {
     /End star must be greater than start star/,
   );
 });
+
+test("supports GMS star-force cost rows through 30 stars", () => {
+  assert.equal(getBaseCost(200, 29), 389_303_700);
+
+  const result = calculateRange({
+    itemLevel: 200,
+    startStar: 25,
+    endStar: 30,
+    spareCost: 1_000_000_000,
+  });
+
+  assert.equal(result.rows.at(-1).star, 29);
+  assert.equal(result.rows.at(-1).successRate, 0.01);
+  assert.equal(result.rows.at(-1).boomProbability, 0.198);
+});
