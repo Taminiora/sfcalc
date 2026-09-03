@@ -32,7 +32,8 @@ test("planner uses stable static asset URLs for production hosting", () => {
   assert.match(html, /src="\.\/src\/planner\.mjs\?v=\d{8}-[a-z0-9-]+"/);
   assert.doesNotMatch(html, /\?(?:fresh|reload)=/);
   assert.equal(script.includes('from "./cubing.mjs?v=20260903-target-cost"'), true);
-  assert.equal(script.includes('from "./profiles.mjs?v=20260903-cost-cache"'), true);
+  assert.equal(script.includes('from "./profiles.mjs?v=20260903-async-cache"'), true);
+  assert.equal(script.includes('new URL("./costCacheWorker.mjs?v=20260903-async-cache"'), true);
   assert.equal(script.includes('from "./strategyFormat.mjs?v=20260617-strategy-display"'), true);
   assert.equal(script.includes('from "./plannerStarforce.mjs"'), true);
   assert.doesNotMatch(script, /from "\.\/[^"]+\?(?:fresh|reload)=/);
@@ -196,6 +197,18 @@ test("planner defaults probability UX to 85 percent target odds", () => {
   assert.equal(script.includes('profileFields.hitProbability.value = "85"'), true);
   assert.equal(script.includes(": 85;"), true);
   assert.equal(script.includes("Clears ${selectedProfile.name} at target odds."), true);
+});
+
+test("planner defers stale saved-upgrade cost refresh until after first render", () => {
+  const script = readFileSync(new URL("./planner.mjs", import.meta.url), "utf8");
+  const worker = readFileSync(new URL("./costCacheWorker.mjs", import.meta.url), "utf8");
+
+  assert.equal(script.includes("loadProfiles(undefined, { refreshStaleCosts: false })"), true);
+  assert.equal(script.includes("loadProfilePresets(undefined, { refreshStaleCosts: false })"), true);
+  assert.equal(script.includes("refreshStaleCostCachesAfterInitialRender();"), true);
+  assert.equal(script.includes("new Worker("), true);
+  assert.equal(worker.includes("refreshStaleProfileCostSnapshots"), true);
+  assert.equal(worker.includes("refreshStaleProfilePresets"), true);
 });
 
 test("planner defaults SF event checkboxes to enabled", () => {
@@ -433,7 +446,10 @@ test("planner can save, load, delete, and clear saved-upgrade presets", () => {
   assert.equal(script.includes('const profilePresetSave = document.querySelector("#profile-preset-save")'), true);
   assert.equal(script.includes('const profilePresetLoad = document.querySelector("#profile-preset-load")'), true);
   assert.equal(script.includes('const profilePresetDelete = document.querySelector("#profile-preset-delete")'), true);
-  assert.equal(script.includes("loadProfilePresets()"), true);
+  assert.equal(
+    script.includes("loadProfilePresets(undefined, { refreshStaleCosts: false })"),
+    true,
+  );
   assert.equal(script.includes("saveProfilePresets(undefined, profilePresets);"), true);
   assert.equal(script.includes("function renderProfilePresets("), true);
   assert.equal(script.includes("profileClearAll.disabled = metrics.length === 0"), true);
@@ -637,7 +653,7 @@ test("planner left-aligns editable input text", () => {
 test("planner additional stat changes accept signed values", () => {
   const script = readFileSync(new URL("./planner.mjs", import.meta.url), "utf8");
 
-  assert.equal(script.includes('from "./profiles.mjs?v=20260903-cost-cache"'), true);
+  assert.equal(script.includes('from "./profiles.mjs?v=20260903-async-cache"'), true);
   assert.match(script, /<input data-stat-gain="\$\{row\.stat\}" inputmode="decimal" step="0\.01" type="number"/);
   assert.doesNotMatch(script, /data-stat-gain="\$\{row\.stat\}"[^>]*min="0"/);
   assert.equal(script.includes("statGains: readStatGains(optimizerStatGains)"), true);

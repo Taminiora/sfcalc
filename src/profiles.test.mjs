@@ -17,6 +17,8 @@ import {
   loadProfilePresets,
   loadStatEquivalence,
   loadStatEquivalencePresets,
+  refreshStaleProfileCostSnapshots,
+  refreshStaleProfilePresets,
   refreshStarforceProfileCosts,
   saveProfiles,
   saveProfilePresets,
@@ -718,7 +720,12 @@ test("recommended cubing preset snapshots match current calculator output", () =
 test("planner launch does not recompute all saved profile costs", () => {
   const script = readFileSync(new URL("./planner.mjs", import.meta.url), "utf8");
 
-  assert.equal(script.includes("let profiles = loadProfiles();"), true);
+  assert.equal(script.includes("let profiles = loadProfiles(undefined, { refreshStaleCosts: false });"), true);
+  assert.equal(
+    script.includes("let profilePresets = loadProfilePresets(undefined, { refreshStaleCosts: false });"),
+    true,
+  );
+  assert.equal(script.includes("refreshStaleCostCachesAfterInitialRender();"), true);
   assert.equal(script.includes("refreshStarforceProfileCosts(loadProfiles())"), false);
 });
 
@@ -1280,6 +1287,62 @@ test("refreshes custom saved rows with complete but unversioned cost snapshots",
   assert.equal(profile.source.percentileCosts.costVariance, expectedCosts.costVariance);
 });
 
+test("can defer stale custom cost refresh until after the initial planner render", () => {
+  const storage = new MapStorage();
+  const expectedCosts = calculateCubingProfileCosts({
+    cubeType: "red",
+    itemType: "weapon",
+    itemLevel: 250,
+    desiredTier: "legendary",
+    target: "lineAtt+3",
+    percentile: 0.85,
+  });
+  storage.setItem(
+    "sfcalc.enhancementPlanner.profiles.v2",
+    JSON.stringify([
+      {
+        id: "deferred-old-cubing-row",
+        name: "Deferred old cubing row",
+        type: "cubing",
+        statGains: { "Attack%": 39 },
+        p50Cost: 1,
+        p75Cost: 1,
+        p95Cost: 1,
+        notes: "",
+        source: {
+          cubeType: "red",
+          itemType: "weapon",
+          itemLevel: 250,
+          desiredTier: "legendary",
+          target: "lineAtt+3",
+          percentile: 0.85,
+          percentileCosts: {
+            p50Cost: 1,
+            p75Cost: 1,
+            pTargetCost: 1,
+            p95Cost: 1,
+            pTargetCubes: 1,
+            meanCubes: 1,
+            expectedCost: 1,
+            cubeVariance: 1,
+            costVariance: 1,
+            targetPercentile: 0.85,
+            strategy: "lineAtt+3",
+          },
+        },
+      },
+    ]),
+  );
+
+  const [loadedProfile] = loadProfiles(storage, { refreshStaleCosts: false });
+  const refreshResult = refreshStaleProfileCostSnapshots([loadedProfile]);
+
+  assert.equal(loadedProfile.source.percentileCosts.pTargetCost, 1);
+  assert.equal(refreshResult.didRefresh, true);
+  assert.equal(refreshResult.profiles[0].source.percentileCosts.pTargetCost, expectedCosts.pTargetCost);
+  assert.equal(refreshResult.profiles[0].source.percentileCosts.costVariance, expectedCosts.costVariance);
+});
+
 test("normalizes legacy saved target-cost cache fields when a row cannot be recalculated", () => {
   const storage = new MapStorage();
   storage.setItem(
@@ -1474,6 +1537,70 @@ test("refreshes custom saved-upgrade preset rows with stale cost snapshots", () 
   assert.equal(profile.notes, "keep this");
   assert.equal(profile.source.percentileCosts.pTargetCost, expectedCosts.pTargetCost);
   assert.equal(profile.source.percentileCosts.costVariance, expectedCosts.costVariance);
+});
+
+test("can defer stale named preset refresh until after the initial planner render", () => {
+  const storage = new MapStorage();
+  const expectedCosts = calculateCubingProfileCosts({
+    cubeType: "red",
+    itemType: "weapon",
+    itemLevel: 250,
+    desiredTier: "legendary",
+    target: "lineAtt+3",
+    percentile: 0.85,
+  });
+  storage.setItem(
+    "sfcalc.enhancementPlanner.profilePresets.v1",
+    JSON.stringify([
+      {
+        id: "my-preset",
+        name: "My preset",
+        profiles: [
+          {
+            id: "my-custom-cubing-row",
+            name: "My custom cubing row",
+            type: "cubing",
+            statGains: { "Attack%": 3 },
+            p50Cost: 1,
+            p75Cost: 1,
+            p95Cost: 1,
+            notes: "keep this",
+            source: {
+              cubeType: "red",
+              itemType: "weapon",
+              itemLevel: 250,
+              desiredTier: "legendary",
+              target: "lineAtt+3",
+              percentile: 0.85,
+              percentileCosts: {
+                p50Cost: 1,
+                p75Cost: 1,
+                pTargetCost: 1,
+                p95Cost: 1,
+                pTargetCubes: 1,
+                meanCubes: 1,
+                expectedCost: 1,
+                cubeVariance: 1,
+                costVariance: 1,
+                targetPercentile: 0.85,
+                strategy: "lineAtt+3",
+              },
+            },
+          },
+        ],
+      },
+    ]),
+  );
+
+  const [loadedPreset] = loadProfilePresets(storage, { refreshStaleCosts: false });
+  const refreshResult = refreshStaleProfilePresets([loadedPreset]);
+
+  assert.equal(loadedPreset.profiles[0].source.percentileCosts.pTargetCost, 1);
+  assert.equal(refreshResult.didRefresh, true);
+  assert.equal(
+    refreshResult.profilePresets[0].profiles[0].source.percentileCosts.pTargetCost,
+    expectedCosts.pTargetCost,
+  );
 });
 
 test("saves and loads stat-equivalence rows and profiles", () => {

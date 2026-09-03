@@ -1165,9 +1165,9 @@ function hasFreshCostSnapshot(profile) {
 
 function refreshProfileCostSnapshotIfStale(profile) {
   if (hasFreshCostSnapshot(profile)) {
-    return profile;
+    return { profile, didRefresh: false };
   }
-  return refreshStarforceProfileCosts([profile])[0];
+  return { profile: refreshStarforceProfileCosts([profile])[0], didRefresh: true };
 }
 
 export function refreshStarforceProfileCosts(profiles) {
@@ -1268,21 +1268,67 @@ function reloadRecommendedProfile(profile) {
 
 function normalizeLoadedProfile(profile) {
   const validProfile = validateProfileInput(profile);
-  return refreshProfileCostSnapshotIfStale(
-    normalizeLegacyPercentileCosts(reloadRecommendedProfile(validProfile)),
-  );
+  const normalizedProfile = normalizeLegacyPercentileCosts(reloadRecommendedProfile(validProfile));
+  return refreshProfileCostSnapshotIfStale(normalizedProfile).profile;
 }
 
-function normalizeLoadedProfilePreset(preset) {
+function normalizeLoadedProfileWithoutCostRefresh(profile) {
+  const validProfile = validateProfileInput(profile);
+  return normalizeLegacyPercentileCosts(reloadRecommendedProfile(validProfile));
+}
+
+function normalizeLoadedProfilePreset(preset, options = {}) {
   const validPreset = validateProfilePresetInput(preset);
+  const normalizeProfile =
+    options.refreshStaleCosts === false
+      ? normalizeLoadedProfileWithoutCostRefresh
+      : normalizeLoadedProfile;
   return {
     ...validPreset,
-    profiles: validPreset.profiles.map(normalizeLoadedProfile).map(cloneProfile),
+    profiles: validPreset.profiles.map(normalizeProfile).map(cloneProfile),
   };
 }
 
 export function getRecommendedProfiles() {
   return getDefaultProfiles();
+}
+
+export function refreshStaleProfileCostSnapshots(profiles) {
+  let didRefresh = false;
+  const refreshedProfiles = profiles.flatMap((profile) => {
+    try {
+      const result = refreshProfileCostSnapshotIfStale(
+        normalizeLoadedProfileWithoutCostRefresh(profile),
+      );
+      didRefresh ||= result.didRefresh;
+      return [result.profile];
+    } catch {
+      return [];
+    }
+  });
+
+  return { didRefresh, profiles: refreshedProfiles };
+}
+
+export function refreshStaleProfilePresets(profilePresets) {
+  let didRefresh = false;
+  const refreshedPresets = profilePresets.flatMap((preset) => {
+    try {
+      const validPreset = validateProfilePresetInput(preset);
+      const result = refreshStaleProfileCostSnapshots(validPreset.profiles);
+      didRefresh ||= result.didRefresh;
+      return [
+        {
+          ...validPreset,
+          profiles: result.profiles.map(cloneProfile),
+        },
+      ];
+    } catch {
+      return [];
+    }
+  });
+
+  return { didRefresh, profilePresets: refreshedPresets };
 }
 
 export function loadStatEquivalence(storage = getDefaultStorage()) {
@@ -1329,7 +1375,7 @@ export function saveStatEquivalencePresets(storage = getDefaultStorage(), preset
   );
 }
 
-export function loadProfilePresets(storage = getDefaultStorage()) {
+export function loadProfilePresets(storage = getDefaultStorage(), options = {}) {
   const parsed = readStoredJson(storage, PROFILE_PRESET_STORAGE_KEY, []);
   if (!Array.isArray(parsed)) {
     return [];
@@ -1337,7 +1383,7 @@ export function loadProfilePresets(storage = getDefaultStorage()) {
 
   return parsed.flatMap((preset) => {
     try {
-      return [normalizeLoadedProfilePreset(preset)];
+      return [normalizeLoadedProfilePreset(preset, options)];
     } catch {
       return [];
     }
@@ -1352,7 +1398,7 @@ export function saveProfilePresets(storage = getDefaultStorage(), presets) {
   );
 }
 
-export function loadProfiles(storage = getDefaultStorage()) {
+export function loadProfiles(storage = getDefaultStorage(), options = {}) {
   const raw = readStoredRaw(storage, PROFILE_STORAGE_KEY);
   if (raw === null) {
     return getDefaultProfiles();
@@ -1371,7 +1417,11 @@ export function loadProfiles(storage = getDefaultStorage()) {
 
   return parsed.flatMap((profile) => {
     try {
-      return [normalizeLoadedProfile(profile)];
+      return [
+        options.refreshStaleCosts === false
+          ? normalizeLoadedProfileWithoutCostRefresh(profile)
+          : normalizeLoadedProfile(profile),
+      ];
     } catch {
       return [];
     }

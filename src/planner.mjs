@@ -24,6 +24,8 @@ import {
   loadProfilePresets,
   loadStatEquivalence,
   loadStatEquivalencePresets,
+  refreshStaleProfileCostSnapshots,
+  refreshStaleProfilePresets,
   saveProfiles,
   saveProfilePresets,
   saveStatEquivalence,
@@ -32,7 +34,7 @@ import {
   validateProfilePresetInput,
   validateStatEquivalenceInput,
   validateStatEquivalencePresetInput,
-} from "./profiles.mjs?v=20260903-cost-cache";
+} from "./profiles.mjs?v=20260903-async-cache";
 import {
   calculateStarforceProfileCosts,
   formatStarforceStrategyForSource,
@@ -134,10 +136,10 @@ const resultFields = {
 const FD_PER_BILLION_MESO = 1_000_000_000;
 const THEME_STORAGE_KEY = "sfcalc.enhancementPlanner.theme.v1";
 
-let profiles = loadProfiles();
+let profiles = loadProfiles(undefined, { refreshStaleCosts: false });
 let statEquivalence = loadStatEquivalence();
 let statEquivalencePresets = loadStatEquivalencePresets();
-let profilePresets = loadProfilePresets();
+let profilePresets = loadProfilePresets(undefined, { refreshStaleCosts: false });
 let profileSort = { key: "fdPerMesoP95", direction: "desc" };
 saveProfiles(undefined, profiles);
 saveStatEquivalence(undefined, statEquivalence);
@@ -1082,6 +1084,62 @@ function renderSavedProfileDependents() {
   renderOptimizer();
 }
 
+function applyBackgroundCostRefresh(profileSnapshot, profilePresetSnapshot, result) {
+  let didRefresh = false;
+
+  if (result.profiles?.didRefresh && profiles === profileSnapshot) {
+    profiles = result.profiles.profiles;
+    saveProfiles(undefined, profiles);
+    didRefresh = true;
+  }
+
+  if (result.profilePresets?.didRefresh && profilePresets === profilePresetSnapshot) {
+    profilePresets = result.profilePresets.profilePresets;
+    saveProfilePresets(undefined, profilePresets);
+    didRefresh = true;
+  }
+
+  if (didRefresh) {
+    renderSavedProfileDependents();
+  }
+}
+
+function refreshStaleCostCachesOnMainThread(profileSnapshot, profilePresetSnapshot) {
+  applyBackgroundCostRefresh(profileSnapshot, profilePresetSnapshot, {
+    profiles: refreshStaleProfileCostSnapshots(profileSnapshot),
+    profilePresets: refreshStaleProfilePresets(profilePresetSnapshot),
+  });
+}
+
+function refreshStaleCostCachesAfterInitialRender() {
+  const profileSnapshot = profiles;
+  const profilePresetSnapshot = profilePresets;
+
+  if (typeof Worker === "undefined") {
+    window.setTimeout(
+      () => refreshStaleCostCachesOnMainThread(profileSnapshot, profilePresetSnapshot),
+      0,
+    );
+    return;
+  }
+
+  const worker = new Worker(new URL("./costCacheWorker.mjs?v=20260903-async-cache", import.meta.url), {
+    type: "module",
+  });
+  worker.addEventListener("message", (event) => {
+    worker.terminate();
+    applyBackgroundCostRefresh(profileSnapshot, profilePresetSnapshot, event.data ?? {});
+  });
+  worker.addEventListener("error", () => {
+    worker.terminate();
+    window.setTimeout(
+      () => refreshStaleCostCachesOnMainThread(profileSnapshot, profilePresetSnapshot),
+      0,
+    );
+  });
+  worker.postMessage({ profiles: profileSnapshot, profilePresets: profilePresetSnapshot });
+}
+
 function updateLiveStatEquivalence({ statusMessage = "" } = {}) {
   try {
     statEquivalence = validateStatEquivalenceInput({
@@ -1428,3 +1486,4 @@ optimizerForm.addEventListener("input", renderOptimizer);
 benchmarkProfileSelect.addEventListener("change", renderOptimizer);
 
 renderAll();
+refreshStaleCostCachesAfterInitialRender();
