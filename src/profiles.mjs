@@ -53,6 +53,7 @@ const DEFAULT_STARFORCE_EVENTS = Object.freeze({
 const MESO_COST_FIELDS = Object.freeze([
   "p50Cost",
   "p75Cost",
+  "pTargetCost",
   "p85Cost",
   "p95Cost",
   "expectedMeso",
@@ -138,14 +139,30 @@ function createPresetStarforceProfile({
   spareCount = 10,
   isAstraSecondary = false,
   costB,
+  expectedTotalCostB = costB,
+  p50CostB = expectedTotalCostB,
+  p75CostB = expectedTotalCostB,
+  pTargetCostB = costB,
+  p95CostB = pTargetCostB,
   expectedBooms = 0,
+  expectedReplacementCostB = Math.max(0, expectedTotalCostB - costB),
+  p50Booms = Math.floor(expectedBooms),
+  p75Booms = Math.ceil(expectedBooms),
+  p95Booms = Math.ceil(expectedBooms * 2),
   achievedProbability = 0.85,
   guaranteeMet = true,
   requiredSpares,
+  requiredBooms,
   strategy = "111/11/11",
   notes = "",
 }) {
   const cost = getCostInMeso(costB);
+  const expectedTotalCost = getCostInMeso(expectedTotalCostB);
+  const p50Cost = getCostInMeso(p50CostB);
+  const p75Cost = getCostInMeso(p75CostB);
+  const pTargetCost = getCostInMeso(pTargetCostB);
+  const p95Cost = getCostInMeso(p95CostB);
+  const expectedReplacementCost = getCostInMeso(expectedReplacementCostB);
   const effectiveSpareCount = isAstraSecondary ? undefined : spareCount;
   const effectiveRequiredSpares = requiredSpares ?? effectiveSpareCount ?? Math.ceil(expectedBooms);
   return createDefaultStarforceProfile({
@@ -157,24 +174,25 @@ function createPresetStarforceProfile({
     targetStar,
     spareCount: effectiveSpareCount,
     isAstraSecondary,
-    p50Cost: cost,
-    p75Cost: cost,
-    p95Cost: cost,
+    p50Cost,
+    p75Cost,
+    p95Cost,
     percentileCosts: {
-      p50Cost: cost,
-      p75Cost: cost,
-      p85Cost: cost,
-      p95Cost: cost,
-      p50Booms: Math.floor(expectedBooms),
-      p75Booms: Math.ceil(expectedBooms),
-      p95Booms: Math.ceil(expectedBooms * 2),
+      p50Cost,
+      p75Cost,
+      pTargetCost,
+      p95Cost,
+      p50Booms,
+      p75Booms,
+      p95Booms,
       availableSpares: effectiveSpareCount ?? null,
       requiredSpares: effectiveRequiredSpares,
-      requiredBooms: effectiveRequiredSpares,
+      ...(requiredBooms === undefined ? {} : { requiredBooms }),
       achievedProbability,
       guaranteeMet,
       expectedMeso: cost,
-      expectedTotalCost: cost,
+      expectedReplacementCost,
+      expectedTotalCost,
       expectedBooms,
       strategy: getStarforceStrategyRows(strategy, targetStar),
     },
@@ -187,38 +205,34 @@ function createPresetCubingProfile({
   name,
   itemType,
   itemLevel = 250,
+  cubeSale = true,
   target,
   targetLabel,
   statGains,
-  costB,
   notes = "",
 }) {
-  const cost = getCostInMeso(costB);
+  const percentileCosts = calculateCubingProfileCosts({
+    cubeType: "black",
+    itemType,
+    itemLevel,
+    cubeSale,
+    desiredTier: "legendary",
+    target,
+    percentile: 0.85,
+  });
   return createDefaultCubingProfile({
     id,
     name,
     itemType,
     itemLevel,
+    cubeSale,
     target,
     targetLabel,
     statGains,
-    p50Cost: cost,
-    p75Cost: cost,
-    p95Cost: cost,
-    percentileCosts: {
-      p50Cost: cost,
-      p75Cost: cost,
-      p85Cost: cost,
-      p95Cost: cost,
-      p85Cubes: Math.round(cost / 23_250_000),
-      p95Cubes: Math.round(cost / 23_250_000),
-      meanCubes: cost / 23_250_000,
-      expectedCost: cost,
-      strategy: target,
-      probability: 0,
-      cubeCost: 22_000_000,
-      revealCost: 1_250_000,
-    },
+    p50Cost: percentileCosts.p50Cost,
+    p75Cost: percentileCosts.p75Cost,
+    p95Cost: percentileCosts.p95Cost,
+    percentileCosts,
     notes,
   });
 }
@@ -228,6 +242,7 @@ function createDefaultCubingProfile({
   name,
   itemType,
   itemLevel = 250,
+  cubeSale = false,
   target,
   targetLabel,
   statGains,
@@ -250,10 +265,11 @@ function createDefaultCubingProfile({
       cubeType: "black",
       itemType,
       itemLevel,
-      cubeSale: false,
+      cubeSale,
       desiredTier: "legendary",
       target,
       targetLabel,
+      percentile: 0.85,
       percentileCosts,
     },
   };
@@ -268,8 +284,17 @@ export const DEFAULT_PROFILE_INPUTS = Object.freeze([
     startStar: 22,
     targetStar: 23,
     isAstraSecondary: true,
-    costB: 23,
-    expectedBooms: 5.05,
+    costB: 17.09383051139441,
+    expectedTotalCostB: 22.14642844885417,
+    pTargetCostB: 29.09383051139441,
+    p95CostB: 22.14642844885417,
+    expectedBooms: 5.052597937459766,
+    p50Booms: 5,
+    p75Booms: 6,
+    p95Booms: 12,
+    achievedProbability: 0.8581833263552916,
+    requiredSpares: 12,
+    requiredBooms: 12,
   }),
   createPresetStarforceProfile({
     id: "recommended-sf-22-23-pitched-160",
@@ -280,7 +305,14 @@ export const DEFAULT_PROFILE_INPUTS = Object.freeze([
     targetStar: 23,
     spareCount: 0,
     costB: 38.80376718165785,
+    p50CostB: 21.779187025278517,
+    p75CostB: 44.95002776796386,
+    pTargetCostB: 66.34561213244567,
+    p95CostB: 127.63497721512101,
     expectedBooms: 1.0698412698412698,
+    p50Booms: 1,
+    p75Booms: 2,
+    p95Booms: 4,
     achievedProbability: 0.4831288343558282,
     guaranteeMet: false,
     requiredSpares: 2,
@@ -292,8 +324,15 @@ export const DEFAULT_PROFILE_INPUTS = Object.freeze([
     itemLevel: 250,
     startStar: 22,
     targetStar: 23,
-    costB: 56,
+    costB: 37.36732630911312,
+    p50CostB: 20.092267190595223,
+    p75CostB: 42.57894080166374,
+    pTargetCostB: 63.74469124495837,
+    p95CostB: 125.59304276999461,
     expectedBooms: 4.39850052694832,
+    p50Booms: 1,
+    p75Booms: 6,
+    p95Booms: 19,
     achievedProbability: 0.8517814579525262,
     requiredSpares: 10,
     strategy: "222/11/21",
@@ -305,8 +344,15 @@ export const DEFAULT_PROFILE_INPUTS = Object.freeze([
     startStar: 22,
     targetStar: 23,
     spareCount: 5,
-    costB: 60,
+    costB: 57.30441224151026,
+    p50CostB: 32.0814005616398,
+    p75CostB: 66.318158378474,
+    pTargetCostB: 97.96837089032505,
+    p95CostB: 188.74141179419388,
     expectedBooms: 2.342788017799678,
+    p50Booms: 1,
+    p75Booms: 3,
+    p95Booms: 10,
     achievedProbability: 0.8511966258708026,
     requiredSpares: 5,
     strategy: "222/11/44",
@@ -319,8 +365,18 @@ export const DEFAULT_PROFILE_INPUTS = Object.freeze([
     startStar: 23,
     targetStar: 24,
     isAstraSecondary: true,
-    costB: 68,
-    expectedBooms: 15.38,
+    costB: 54.462366421959864,
+    expectedTotalCostB: 68.63012509801771,
+    pTargetCostB: 86.46236642195987,
+    p95CostB: 68.63012509801771,
+    expectedBooms: 14.167758676057854,
+    p50Booms: 14,
+    p75Booms: 15,
+    p95Booms: 32,
+    achievedProbability: 0.8514161837857765,
+    requiredSpares: 32,
+    requiredBooms: 32,
+    strategy: "112/11/11",
   }),
   createPresetStarforceProfile({
     id: "recommended-sf-22-23-pitched-200",
@@ -331,7 +387,14 @@ export const DEFAULT_PROFILE_INPUTS = Object.freeze([
     targetStar: 23,
     spareCount: 0,
     costB: 75.78838853514739,
+    p50CostB: 42.537349304734384,
+    p75CostB: 87.79276724598587,
+    pTargetCostB: 129.58089859298474,
+    p95CostB: 249.28635089352056,
     expectedBooms: 1.0698412698412698,
+    p50Booms: 1,
+    p75Booms: 2,
+    p95Booms: 4,
     achievedProbability: 0.4831288343558282,
     guaranteeMet: false,
     requiredSpares: 2,
@@ -345,7 +408,6 @@ export const DEFAULT_PROFILE_INPUTS = Object.freeze([
     target: "percStat+36",
     targetLabel: "36%+ main stat",
     statGains: { "Main Stat%": DEFAULT_DP_STAT_LINES },
-    costB: 31,
   }),
   createPresetStarforceProfile({
     id: "recommended-sf-astra-24-25",
@@ -355,8 +417,18 @@ export const DEFAULT_PROFILE_INPUTS = Object.freeze([
     startStar: 24,
     targetStar: 25,
     isAstraSecondary: true,
-    costB: 190,
-    expectedBooms: 41.6,
+    costB: 147.47329203653902,
+    expectedTotalCostB: 185.79370597940027,
+    pTargetCostB: 234.47329203653902,
+    p95CostB: 185.79370597940027,
+    expectedBooms: 38.320413942861244,
+    p50Booms: 38,
+    p75Booms: 39,
+    p95Booms: 87,
+    achievedProbability: 0.8504744356426231,
+    requiredSpares: 87,
+    requiredBooms: 87,
+    strategy: "112/11/11",
   }),
   createPresetCubingProfile({
     id: "recommended-cube-emblem-double-prime-attack",
@@ -366,7 +438,6 @@ export const DEFAULT_PROFILE_INPUTS = Object.freeze([
     target: "percAtt+36",
     targetLabel: "36%+ Attack/Magic Attack",
     statGains: { "Attack%": DEFAULT_DP_ATTACK_LINES },
-    costB: 400,
   }),
   createPresetStarforceProfile({
     id: "recommended-sf-23-24-kalos-eternal-250-1114",
@@ -374,8 +445,15 @@ export const DEFAULT_PROFILE_INPUTS = Object.freeze([
     itemLevel: 250,
     startStar: 23,
     targetStar: 24,
-    costB: 217,
+    costB: 285.76824944494183,
+    p50CostB: 163.9183923102782,
+    p75CostB: 333.6827821966476,
+    pTargetCostB: 488.8794760586756,
+    p95CostB: 928.8754912776731,
     expectedBooms: 4.6888828898093555,
+    p50Booms: 2,
+    p75Booms: 7,
+    p95Booms: 18,
     achievedProbability: 0.8505271185311204,
     requiredSpares: 10,
     strategy: "444/33/44",
@@ -389,7 +467,14 @@ export const DEFAULT_PROFILE_INPUTS = Object.freeze([
     targetStar: 24,
     spareCount: 0,
     costB: 110.74566861414293,
+    p50CostB: 63.159493071243716,
+    p75CostB: 129.04476812789508,
+    pTargetCostB: 189.4374132823278,
+    p95CostB: 361.1289445153328,
     expectedBooms: 3.5285865457294023,
+    p50Booms: 2,
+    p75Booms: 5,
+    p95Booms: 13,
     achievedProbability: 0.36971830985915494,
     guaranteeMet: false,
     requiredSpares: 8,
@@ -402,8 +487,15 @@ export const DEFAULT_PROFILE_INPUTS = Object.freeze([
     startStar: 23,
     targetStar: 24,
     spareCount: 5,
-    costB: 245,
+    costB: 422.45943598766877,
+    p50CostB: 240.93333667151066,
+    p75CostB: 492.2646671042333,
+    pTargetCostB: 722.6433660834371,
+    p95CostB: 1377.591857648936,
     expectedBooms: 3.5285865457294023,
+    p50Booms: 2,
+    p75Booms: 5,
+    p95Booms: 13,
     achievedProbability: 0.7643588444794145,
     guaranteeMet: false,
     requiredSpares: 8,
@@ -417,17 +509,15 @@ export const DEFAULT_PROFILE_INPUTS = Object.freeze([
     target: "percAtt+36",
     targetLabel: "36%+ Attack/Magic Attack",
     statGains: { "Attack%": DEFAULT_DP_ATTACK_LINES },
-    costB: 600,
   }),
   createPresetCubingProfile({
     id: "recommended-cube-secondary-double-prime-attack",
     name: "DP secondary",
     itemType: "secondary",
     itemLevel: 140,
-    target: "percAtt+36",
-    targetLabel: "36%+ Attack/Magic Attack",
+    target: "percAtt+33",
+    targetLabel: "33%+ Attack/Magic Attack",
     statGains: { "Attack%": DEFAULT_DP_ATTACK_LINES },
-    costB: 800,
   }),
   createPresetStarforceProfile({
     id: "recommended-sf-23-24-pitched-200-0-spares",
@@ -438,7 +528,14 @@ export const DEFAULT_PROFILE_INPUTS = Object.freeze([
     targetStar: 24,
     spareCount: 0,
     costB: 216.29953356777884,
+    p50CostB: 123.35804171263764,
+    p75CostB: 252.0398625318729,
+    pTargetCostB: 369.99392066983364,
+    p95CostB: 705.3280141520964,
     expectedBooms: 3.5285865457294023,
+    p50Booms: 2,
+    p75Booms: 5,
+    p95Booms: 13,
     achievedProbability: 0.36971830985915494,
     guaranteeMet: false,
     requiredSpares: 8,
@@ -452,8 +549,17 @@ export const DEFAULT_PROFILE_INPUTS = Object.freeze([
     startStar: 25,
     targetStar: 26,
     isAstraSecondary: true,
-    costB: 500,
-    expectedBooms: 112.52,
+    costB: 377.42676857572496,
+    expectedTotalCostB: 489.94740892711695,
+    pTargetCostB: 633.426768575725,
+    p95CostB: 489.94740892711695,
+    expectedBooms: 112.52064035139193,
+    p50Booms: 112,
+    p75Booms: 113,
+    p95Booms: 256,
+    achievedProbability: 0.8501051329033767,
+    requiredSpares: 256,
+    requiredBooms: 256,
   }),
   createPresetStarforceProfile({
     id: "recommended-sf-24-25-kalos-eternal-250-1114",
@@ -461,8 +567,15 @@ export const DEFAULT_PROFILE_INPUTS = Object.freeze([
     itemLevel: 250,
     startStar: 24,
     targetStar: 25,
-    costB: 585,
+    costB: 1142.975544957123,
+    p50CostB: 645.6081695708378,
+    p75CostB: 1327.1453716297924,
+    pTargetCostB: 1954.6385887510467,
+    p95CostB: 3746.7424996200584,
     expectedBooms: 9.54398646654429,
+    p50Booms: 4,
+    p75Booms: 14,
+    p95Booms: 38,
     achievedProbability: 0.6817129248432829,
     guaranteeMet: false,
     requiredSpares: 22,
@@ -475,8 +588,15 @@ export const DEFAULT_PROFILE_INPUTS = Object.freeze([
     startStar: 24,
     targetStar: 25,
     spareCount: 5,
-    costB: 640,
+    costB: 1142.975544957123,
+    p50CostB: 645.6081695708378,
+    p75CostB: 1327.1453716297924,
+    pTargetCostB: 1954.6385887510467,
+    p95CostB: 3746.7424996200584,
     expectedBooms: 9.54398646654429,
+    p50Booms: 4,
+    p75Booms: 14,
+    p95Booms: 38,
     achievedProbability: 0.5521043473310309,
     guaranteeMet: false,
     requiredSpares: 22,
@@ -485,6 +605,7 @@ export const DEFAULT_PROFILE_INPUTS = Object.freeze([
 ]);
 
 let recommendedProfilesCache = null;
+let recommendedProfilesByIdCache = null;
 
 function validateDefaultStatEquivalenceInput() {
   return validateStatEquivalenceInput({ className: DEFAULT_STAT_EQUIVALENCE_CLASS });
@@ -902,13 +1023,18 @@ export function deriveProfileMetrics(profile, statEquivalence) {
     validProfile.type === "starforce"
       ? calculateStarforceFdGain(validProfile, statEquivalence)
       : calculateFdGain(validProfile.statGains, statEquivalence);
+  const targetOddsCost = Number(
+    validProfile.source?.percentileCosts?.pTargetCost ??
+      validProfile.source?.percentileCosts?.p85Cost ??
+      validProfile.p95Cost,
+  );
 
   return {
     ...validProfile,
     fdGain,
     fdPerMesoP50: fdGain / validProfile.p50Cost,
     fdPerMesoP75: fdGain / validProfile.p75Cost,
-    fdPerMesoP95: fdGain / validProfile.p95Cost,
+    fdPerMesoP95: fdGain / targetOddsCost,
   };
 }
 
@@ -933,6 +1059,105 @@ function hasCubingCostSource(source) {
   );
 }
 
+function hasFiniteCostValue(costs, key) {
+  return Number.isFinite(Number(costs?.[key]));
+}
+
+function normalizeLegacyPercentileCosts(profile) {
+  const costs = profile.source?.percentileCosts;
+  if (!costs) {
+    return profile;
+  }
+
+  const percentileCosts = { ...costs };
+  if (!hasFiniteCostValue(percentileCosts, "pTargetCost") && hasFiniteCostValue(costs, "p85Cost")) {
+    percentileCosts.pTargetCost = Number(costs.p85Cost);
+  }
+  if (
+    profile.type === "cubing" &&
+    !hasFiniteCostValue(percentileCosts, "pTargetCubes") &&
+    hasFiniteCostValue(costs, "p85Cubes")
+  ) {
+    percentileCosts.pTargetCubes = Number(costs.p85Cubes);
+  }
+
+  return {
+    ...profile,
+    source: {
+      ...profile.source,
+      percentileCosts,
+    },
+  };
+}
+
+function hasFreshStarforceCostSnapshot(profile) {
+  const costs = profile.source?.percentileCosts;
+  if (!costs) {
+    return false;
+  }
+
+  const requiredCostFields = [
+    "p50Cost",
+    "p75Cost",
+    "pTargetCost",
+    "p95Cost",
+    "expectedMeso",
+    "expectedReplacementCost",
+    "expectedTotalCost",
+    "expectedBooms",
+    "achievedProbability",
+    "requiredSpares",
+  ];
+  const requiredBoomFields = ["p50Booms", "p75Booms", "p95Booms"];
+  return (
+    requiredCostFields.every((field) => hasFiniteCostValue(costs, field)) &&
+    requiredBoomFields.every((field) => Number.isInteger(Number(costs[field]))) &&
+    typeof costs.guaranteeMet === "boolean" &&
+    Array.isArray(costs.strategy)
+  );
+}
+
+function hasFreshCubingCostSnapshot(profile) {
+  const costs = profile.source?.percentileCosts;
+  if (!costs) {
+    return false;
+  }
+
+  const requiredCostFields = [
+    "p50Cost",
+    "p75Cost",
+    "pTargetCost",
+    "p95Cost",
+    "pTargetCubes",
+    "meanCubes",
+    "expectedCost",
+    "cubeVariance",
+    "costVariance",
+  ];
+  return (
+    requiredCostFields.every((field) => hasFiniteCostValue(costs, field)) &&
+    Number.isFinite(Number(costs.targetPercentile)) &&
+    typeof costs.strategy === "string"
+  );
+}
+
+function hasFreshCostSnapshot(profile) {
+  if (profile.type === "starforce" && hasStarforceCostSource(profile.source)) {
+    return hasFreshStarforceCostSnapshot(profile);
+  }
+  if (profile.type === "cubing" && hasCubingCostSource(profile.source)) {
+    return hasFreshCubingCostSnapshot(profile);
+  }
+  return true;
+}
+
+function refreshProfileCostSnapshotIfStale(profile) {
+  if (hasFreshCostSnapshot(profile)) {
+    return profile;
+  }
+  return refreshStarforceProfileCosts([profile])[0];
+}
+
 export function refreshStarforceProfileCosts(profiles) {
   return profiles.map((profile) => {
     const validProfile = validateProfileInput(profile);
@@ -946,6 +1171,7 @@ export function refreshStarforceProfileCosts(profiles) {
           cubeSale: Boolean(validProfile.source.cubeSale),
           desiredTier: validProfile.source.desiredTier,
           target: validProfile.source.target,
+          percentile: Number(validProfile.source.percentile ?? 0.85),
         }),
         additionalMesoCost,
       );
@@ -1012,6 +1238,33 @@ function getDefaultProfiles() {
   return recommendedProfilesCache.map(cloneProfile);
 }
 
+function getRecommendedProfilesById() {
+  recommendedProfilesByIdCache ??= new Map(
+    getDefaultProfiles().map((profile) => [profile.id, profile]),
+  );
+  return recommendedProfilesByIdCache;
+}
+
+function reloadRecommendedProfile(profile) {
+  const recommendedProfile = getRecommendedProfilesById().get(profile.id);
+  return recommendedProfile ? cloneProfile(recommendedProfile) : profile;
+}
+
+function normalizeLoadedProfile(profile) {
+  const validProfile = validateProfileInput(profile);
+  return refreshProfileCostSnapshotIfStale(
+    normalizeLegacyPercentileCosts(reloadRecommendedProfile(validProfile)),
+  );
+}
+
+function normalizeLoadedProfilePreset(preset) {
+  const validPreset = validateProfilePresetInput(preset);
+  return {
+    ...validPreset,
+    profiles: validPreset.profiles.map(normalizeLoadedProfile).map(cloneProfile),
+  };
+}
+
 export function getRecommendedProfiles() {
   return getDefaultProfiles();
 }
@@ -1068,7 +1321,7 @@ export function loadProfilePresets(storage = getDefaultStorage()) {
 
   return parsed.flatMap((preset) => {
     try {
-      return [validateProfilePresetInput(preset)];
+      return [normalizeLoadedProfilePreset(preset)];
     } catch {
       return [];
     }
@@ -1102,7 +1355,7 @@ export function loadProfiles(storage = getDefaultStorage()) {
 
   return parsed.flatMap((profile) => {
     try {
-      return [validateProfileInput(profile)];
+      return [normalizeLoadedProfile(profile)];
     } catch {
       return [];
     }

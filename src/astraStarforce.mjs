@@ -398,7 +398,7 @@ export function calculateAstraStarforceProfileCosts({
   const result = {
     p50Cost: expectedTotalCost,
     p75Cost: expectedTotalCost,
-    p85Cost: bestPolicy.percentileCost,
+    pTargetCost: bestPolicy.percentileCost,
     p95Cost: expectedTotalCost,
     p50Booms: Math.floor(bestPolicy.expectedBooms),
     p75Booms: Math.ceil(bestPolicy.expectedBooms),
@@ -437,7 +437,7 @@ export function optimizeAstraStarforce({
     hitProbability,
     events,
   });
-  const totalExpectedCost = costs.p85Cost;
+  const totalExpectedCost = costs.pTargetCost ?? costs.p85Cost;
   const fdPerMeso = sfFdGain / totalExpectedCost;
 
   return {

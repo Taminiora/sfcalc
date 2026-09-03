@@ -31,7 +31,7 @@ test("Astra profile costs optimize strategy from target odds instead of spare co
   assert.equal(formatStrategy(p85.strategy, { showBaseSuffix: false }), "111/11/11");
   assert.equal(formatStrategy(p95.strategy, { showBaseSuffix: false }), "112/11/23");
   assert.equal(p85.availableSpares, null);
-  assert.equal(p85.p85Cost, p85.expectedMeso + p85.requiredBooms * ASTRA_REPLACEMENT_COST);
+  assert.equal(p85.pTargetCost, p85.expectedMeso + p85.requiredBooms * ASTRA_REPLACEMENT_COST);
   assert.ok(p95.requiredBooms > p85.requiredBooms);
   assert.ok(p95.achievedProbability >= 0.95);
 });
@@ -62,7 +62,7 @@ test("Astra supports high-star targets through 30", () => {
 
   assert.ok(result.requiredBooms > 0);
   assert.ok(result.achievedProbability >= 0.85);
-  assert.ok(result.p85Cost > result.expectedMeso);
-  assert.equal(result.p85Cost, result.expectedMeso + result.requiredBooms * ASTRA_REPLACEMENT_COST);
+  assert.ok(result.pTargetCost > result.expectedMeso);
+  assert.equal(result.pTargetCost, result.expectedMeso + result.requiredBooms * ASTRA_REPLACEMENT_COST);
   assert.equal(result.strategy.at(-1).star, 29);
 });

@@ -58,7 +58,42 @@ function formatStrategyRows(rows) {
     failureProbability: row.failureProbability,
     expectedMeso: row.expectedMeso,
     expectedBooms: row.expectedBooms,
+    mesoVariance: row.mesoVariance,
+    boomVariance: row.boomVariance,
   }));
+}
+
+function normalQuantile(probability) {
+  if (probability <= 0) {
+    return -Infinity;
+  }
+  if (probability >= 1) {
+    return Infinity;
+  }
+
+  // Abramowitz and Stegun 26.2.17, mirrored around 0.5.
+  const numerator = [2.515517, 0.802853, 0.010328];
+  const denominator = [1.432788, 0.189269, 0.001308];
+  const tailProbability = probability < 0.5 ? probability : 1 - probability;
+  const t = Math.sqrt(-2 * Math.log(tailProbability));
+  const z =
+    t -
+    (numerator[0] + t * (numerator[1] + t * numerator[2])) /
+      (1 + t * (denominator[0] + t * (denominator[1] + t * denominator[2])));
+
+  return probability < 0.5 ? -z : z;
+}
+
+function getLognormalPercentile(mean, variance, percentile) {
+  if (!Number.isFinite(mean) || mean <= 0 || !Number.isFinite(variance) || variance <= 0) {
+    return mean;
+  }
+
+  const coefficientOfVariationSquared = variance / mean ** 2;
+  const sigmaSquared = Math.log(1 + coefficientOfVariationSquared);
+  const logMean = Math.log(mean) - sigmaSquared / 2;
+
+  return Math.exp(logMean + normalQuantile(percentile) * Math.sqrt(sigmaSquared));
 }
 
 function cloneOptimizeResult(result) {
@@ -219,14 +254,22 @@ export function calculateStarforceProfileCosts({
   const p95Booms = getBoomPercentile(bestPolicy.boomDistribution, 0.95);
   const expectedReplacementCost = bestPolicy.expectedBooms * replacementCostPerBoom;
   const expectedTotalCost = bestPolicy.expectedMeso + expectedReplacementCost;
-  const targetOddsCost = bestPolicy.expectedMeso + bestPolicy.requiredSpares * replacementCostPerBoom;
+  const p50MesoCost = getLognormalPercentile(bestPolicy.expectedMeso, bestPolicy.mesoVariance, 0.5);
+  const p75MesoCost = getLognormalPercentile(bestPolicy.expectedMeso, bestPolicy.mesoVariance, 0.75);
+  const p95MesoCost = getLognormalPercentile(bestPolicy.expectedMeso, bestPolicy.mesoVariance, 0.95);
+  const targetOddsMesoCost = getLognormalPercentile(
+    bestPolicy.expectedMeso,
+    bestPolicy.mesoVariance,
+    hitProbability,
+  );
+  const targetOddsCost = targetOddsMesoCost + bestPolicy.requiredSpares * replacementCostPerBoom;
   const reportedExpectedCost = replacementCostPerBoom > 0 ? expectedTotalCost : bestPolicy.expectedMeso;
 
   return {
-    p50Cost: reportedExpectedCost,
-    p75Cost: reportedExpectedCost,
-    p95Cost: reportedExpectedCost,
-    p85Cost: replacementCostPerBoom > 0 ? targetOddsCost : bestPolicy.expectedMeso,
+    p50Cost: p50MesoCost + (replacementCostPerBoom > 0 ? expectedReplacementCost : 0),
+    p75Cost: p75MesoCost + (replacementCostPerBoom > 0 ? expectedReplacementCost : 0),
+    p95Cost: p95MesoCost + (replacementCostPerBoom > 0 ? expectedReplacementCost : 0),
+    pTargetCost: replacementCostPerBoom > 0 ? targetOddsCost : targetOddsMesoCost,
     p50Booms,
     p75Booms,
     p95Booms,
@@ -238,6 +281,8 @@ export function calculateStarforceProfileCosts({
     expectedReplacementCost,
     expectedTotalCost,
     expectedBooms: bestPolicy.expectedBooms,
+    mesoVariance: bestPolicy.mesoVariance,
+    boomVariance: bestPolicy.boomVariance,
     strategy: formatStrategyRows(bestPolicy.rows),
   };
 }

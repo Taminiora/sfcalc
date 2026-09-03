@@ -697,29 +697,34 @@ export function calculateCubingProfileCosts({
     target,
   });
   const meanCubes = 1 / successProbability;
-  const p85Cubes = getGeometricPercentile(successProbability, percentile);
+  const cubeVariance = (1 - successProbability) / successProbability ** 2;
+  const pTargetCubes = getGeometricPercentile(successProbability, percentile);
   const cubeCost = getCubeCost(cubeType) * (cubeSale ? 1 - CUBE_SALE_DISCOUNT : 1);
   const revealCost = getRevealCost(numericItemLevel);
   const costPerCube = cubeCost + revealCost;
   const expectedCost = costPerCube * meanCubes;
-  const targetOddsCost = costPerCube * p85Cubes;
+  const targetOddsCost = costPerCube * pTargetCubes;
+  const p95Cubes = getGeometricPercentile(successProbability, 0.95);
 
   return {
     strategy: target,
     targetPercentile: percentile,
     successProbability,
     meanCubes,
-    p85Cubes,
-    p95Cubes: p85Cubes,
+    cubeVariance,
+    pTargetCubes,
+    p85Cubes: pTargetCubes,
+    p95Cubes,
     cubeSale: Boolean(cubeSale),
     cubeSaleDiscount: cubeSale ? CUBE_SALE_DISCOUNT : 0,
     cubeCost,
     revealCost,
     costPerCube,
+    costVariance: cubeVariance * costPerCube ** 2,
     expectedCost,
-    p85Cost: targetOddsCost,
+    pTargetCost: targetOddsCost,
     p50Cost: costPerCube * getGeometricPercentile(successProbability, 0.5),
     p75Cost: costPerCube * getGeometricPercentile(successProbability, 0.75),
-    p95Cost: targetOddsCost,
+    p95Cost: costPerCube * p95Cubes,
   };
 }

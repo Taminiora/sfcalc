@@ -31,7 +31,8 @@ test("planner uses stable static asset URLs for production hosting", () => {
   assert.match(html, /href="\.\/src\/styles\.css\?v=\d{8}-[a-z0-9-]+"/);
   assert.match(html, /src="\.\/src\/planner\.mjs\?v=\d{8}-[a-z0-9-]+"/);
   assert.doesNotMatch(html, /\?(?:fresh|reload)=/);
-  assert.equal(script.includes('from "./cubing.mjs?v=20260617-cd-hat-options"'), true);
+  assert.equal(script.includes('from "./cubing.mjs?v=20260903-target-cost"'), true);
+  assert.equal(script.includes('from "./profiles.mjs?v=20260903-sf-target-cost"'), true);
   assert.equal(script.includes('from "./strategyFormat.mjs?v=20260617-strategy-display"'), true);
   assert.equal(script.includes('from "./plannerStarforce.mjs"'), true);
   assert.doesNotMatch(script, /from "\.\/[^"]+\?(?:fresh|reload)=/);
@@ -155,6 +156,10 @@ test("planner save upgrade form supports star-force and cubing modes", () => {
   assert.equal(script.includes("const groupedOptions = new Map()"), true);
   assert.equal(script.includes("document.createElement(\"optgroup\")"), true);
   assert.equal(script.includes("cubeSale: profileFields.cubeSale.checked"), true);
+  assert.equal(html.includes('id="profile-cubing-hit-probability"'), true);
+  assert.equal(html.includes('value="85"'), true);
+  assert.equal(script.includes("cubingHitProbability: document.querySelector(\"#profile-cubing-hit-probability\")"), true);
+  assert.equal(script.includes("percentile: Number(profileFields.cubingHitProbability.value) / 100"), true);
   assert.equal(script.includes("profileFields.cubeSale.checked = false"), true);
   assert.equal(script.includes('renderCubingTargetOptions("percAtt+39")'), true);
   assert.equal(cubing.includes("Double prime main stat"), false);
@@ -267,7 +272,8 @@ test("planner cubing stat changes are open and named plainly", () => {
     /\.planner-grid\s*\{[\s\S]*?grid-template-columns: minmax\(360px, 400px\) minmax\(760px, 1fr\)/s,
   );
   assert.match(css, /\.planner-grid\s*\{[^}]*align-items: start/s);
-  assert.match(css, /\.cubing-target-grid\s*\{[\s\S]*?grid-template-columns: minmax\(120px, 0\.8fr\) minmax\(220px, 1\.4fr\)/s);
+  assert.match(css, /\.cubing-target-grid\s*\{[\s\S]*?grid-template-columns: minmax\(0, 1fr\)/s);
+  assert.match(css, /\.cubing-target-grid label\s*\{[\s\S]*?min-width: 0/s);
 });
 
 test("planner save upgrade shows automatic star-force stat changes", () => {
@@ -631,7 +637,7 @@ test("planner left-aligns editable input text", () => {
 test("planner additional stat changes accept signed values", () => {
   const script = readFileSync(new URL("./planner.mjs", import.meta.url), "utf8");
 
-  assert.equal(script.includes('from "./profiles.mjs"'), true);
+  assert.equal(script.includes('from "./profiles.mjs?v=20260903-sf-target-cost"'), true);
   assert.match(script, /<input data-stat-gain="\$\{row\.stat\}" inputmode="decimal" step="0\.01" type="number"/);
   assert.doesNotMatch(script, /data-stat-gain="\$\{row\.stat\}"[^>]*min="0"/);
   assert.equal(script.includes("statGains: readStatGains(optimizerStatGains)"), true);

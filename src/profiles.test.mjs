@@ -27,7 +27,12 @@ import {
   validateStatEquivalenceInput,
   validateStatEquivalencePresetInput,
 } from "./profiles.mjs";
-import { formatStarforceStrategyForSource } from "./plannerStarforce.mjs";
+import { calculateAstraStarforceProfileCosts } from "./astraStarforce.mjs";
+import { calculateCubingProfileCosts } from "./cubing.mjs";
+import {
+  calculateStarforceProfileCosts,
+  formatStarforceStrategyForSource,
+} from "./plannerStarforce.mjs";
 import { formatStrategy } from "./strategyFormat.mjs";
 import { parseScouterFinalDamageTable } from "./statEquivalenceParser.mjs";
 
@@ -45,6 +50,14 @@ LUK    30    0.019%
 LUK%    12    0.141%
 Not Affected by % LUK    200    0.050%
 All Stat%    9    0.883%`;
+
+function assertClose(actual, expected, label, tolerance = 1e-9) {
+  assert.ok(
+    Math.abs(Number(actual) - Number(expected)) <=
+      Math.max(1, Math.abs(Number(expected))) * tolerance,
+    `${label}: expected ${expected}, got ${actual}`,
+  );
+}
 
 test("defaults stat equivalence to the original Wind Archer screenshot values", () => {
   const statEquivalence = loadStatEquivalence(new MapStorage());
@@ -136,13 +149,18 @@ test("derives profile metrics from computed costs and stat gains", () => {
     p75Cost: 22_000_000_000,
     p95Cost: 64_000_000_000,
     notes: "",
+    source: {
+      percentileCosts: {
+        pTargetCost: 42_000_000_000,
+      },
+    },
   });
 
   const metrics = deriveProfileMetrics(profile, statEquivalence);
 
   assert.equal(metrics.fdGain, 2.1);
   assert.equal(metrics.fdPerMesoP50, 2.1 / 12_000_000_000);
-  assert.equal(metrics.fdPerMesoP95, 2.1 / 64_000_000_000);
+  assert.equal(metrics.fdPerMesoP95, 2.1 / 42_000_000_000);
 });
 
 test("derives star-force FD gain from wiki stat gains plus manual additions", () => {
@@ -508,7 +526,7 @@ test("applies additional meso cost only to meso fields", () => {
     {
       p50Cost: 10,
       p75Cost: 20,
-      p85Cost: 30,
+      pTargetCost: 30,
       p95Cost: 40,
       expectedMeso: 50,
       expectedCost: 60,
@@ -521,7 +539,7 @@ test("applies additional meso cost only to meso fields", () => {
   assert.deepEqual(costs, {
     p50Cost: 17,
     p75Cost: 27,
-    p85Cost: 37,
+    pTargetCost: 37,
     p95Cost: 47,
     expectedMeso: 57,
     expectedCost: 67,
@@ -574,8 +592,12 @@ test("refreshes stored cubing costs from source settings", () => {
   assert.equal(profile.source.cubeType, "red");
   assert.equal(profile.source.additionalMesoCost, 2_000_000_000);
   assert.equal(profile.source.percentileCosts.strategy, "lineAtt+3");
+  assert.equal(profile.source.percentileCosts.targetPercentile, 0.85);
+  assert.ok(profile.source.percentileCosts.pTargetCubes > 0);
   assert.ok(profile.source.percentileCosts.p85Cubes > 0);
-  assert.equal(profile.source.percentileCosts.p95Cost, profile.source.percentileCosts.p85Cost);
+  assert.ok(profile.source.percentileCosts.p95Cost >= profile.source.percentileCosts.pTargetCost);
+  assert.ok(profile.source.percentileCosts.cubeVariance > 0);
+  assert.ok(profile.source.percentileCosts.costVariance > 0);
 });
 
 test("recommended saved upgrades ship with precomputed costs", () => {
@@ -588,6 +610,109 @@ test("recommended saved upgrades ship with precomputed costs", () => {
     ),
     true,
   );
+});
+
+test("recommended star-force preset snapshots match current calculator output", () => {
+  const profiles = getRecommendedProfiles().filter((profile) => profile.type === "starforce");
+
+  for (const profile of profiles) {
+    const source = profile.source;
+    const costs = source.isAstraSecondary
+      ? calculateAstraStarforceProfileCosts({
+          startStar: source.startStar,
+          targetStar: source.targetStar,
+          hitProbability: source.hitProbability,
+          events: source.events,
+        })
+      : calculateStarforceProfileCosts({
+          itemLevel: source.itemLevel,
+          startStar: source.startStar,
+          targetStar: source.targetStar,
+          spareCount: source.spareCount,
+          hitProbability: source.hitProbability,
+          events: source.events,
+        });
+    const cached = source.percentileCosts;
+
+    for (const field of ["p50Cost", "p75Cost", "p95Cost"]) {
+      assertClose(profile[field], costs[field], `${profile.name} profile.${field}`);
+    }
+    for (const field of [
+      "p50Cost",
+      "p75Cost",
+      "pTargetCost",
+      "p95Cost",
+      "expectedMeso",
+      "expectedReplacementCost",
+      "expectedTotalCost",
+      "expectedBooms",
+      "achievedProbability",
+    ]) {
+      assertClose(cached[field], costs[field], `${profile.name} cached.${field}`);
+    }
+    for (const field of [
+      "p50Booms",
+      "p75Booms",
+      "p95Booms",
+      "availableSpares",
+      "requiredSpares",
+      "requiredBooms",
+      "guaranteeMet",
+    ]) {
+      assert.equal(cached[field], costs[field], `${profile.name} cached.${field}`);
+    }
+    assert.equal(
+      formatStrategy(formatStarforceStrategyForSource(cached.strategy, source), {
+        showBaseSuffix: false,
+      }),
+      formatStrategy(formatStarforceStrategyForSource(costs.strategy, source), {
+        showBaseSuffix: false,
+      }),
+      `${profile.name} strategy`,
+    );
+  }
+});
+
+test("recommended cubing preset snapshots match current calculator output", () => {
+  const profiles = getRecommendedProfiles().filter((profile) => profile.type === "cubing");
+
+  for (const profile of profiles) {
+    const source = profile.source;
+    const costs = calculateCubingProfileCosts({
+      cubeType: source.cubeType,
+      itemType: source.itemType,
+      itemLevel: source.itemLevel,
+      cubeSale: source.cubeSale,
+      desiredTier: source.desiredTier,
+      target: source.target,
+      percentile: source.percentile,
+    });
+    const cached = source.percentileCosts;
+
+    for (const field of ["p50Cost", "p75Cost", "p95Cost"]) {
+      assertClose(profile[field], costs[field], `${profile.name} profile.${field}`);
+    }
+    for (const field of [
+      "p50Cost",
+      "p75Cost",
+      "pTargetCost",
+      "p95Cost",
+      "pTargetCubes",
+      "p95Cubes",
+      "meanCubes",
+      "expectedCost",
+      "cubeVariance",
+      "costVariance",
+      "cubeCost",
+      "revealCost",
+      "cubeSaleDiscount",
+    ]) {
+      assertClose(cached[field], costs[field], `${profile.name} cached.${field}`);
+    }
+    assert.equal(cached.strategy, costs.strategy, `${profile.name} cached.strategy`);
+    assert.equal(cached.targetPercentile, costs.targetPercentile, `${profile.name} cached.targetPercentile`);
+    assert.equal(cached.cubeSale, costs.cubeSale, `${profile.name} cached.cubeSale`);
+  }
 });
 
 test("planner launch does not recompute all saved profile costs", () => {
@@ -649,6 +774,14 @@ test("loads recommended saved upgrades when no profile library exists", () => {
   assert.equal(pitched200TwentyTwoToTwentyThree.source.percentileCosts.requiredSpares, 2);
   assert.equal(pitched160TwentyTwoToTwentyThree.source.percentileCosts.guaranteeMet, false);
   assert.equal(pitched200TwentyTwoToTwentyThree.source.percentileCosts.guaranteeMet, false);
+  assert.ok(
+    pitched160TwentyTwoToTwentyThree.source.percentileCosts.pTargetCost >
+      pitched160TwentyTwoToTwentyThree.source.percentileCosts.expectedMeso,
+  );
+  assert.equal(
+    Math.round(pitched160TwentyTwoToTwentyThree.source.percentileCosts.pTargetCost / 1_000_000_000),
+    66,
+  );
   assert.equal(
     formatStrategy(
       formatStarforceStrategyForSource(
@@ -691,13 +824,13 @@ test("loads recommended saved upgrades when no profile library exists", () => {
     Math.round(
       profiles.find((profile) => profile.name === "23★ → 24★ Pitched lv160")?.p95Cost,
     ),
-    110_745_668_614,
+    361_128_944_515,
   );
   assert.equal(
     Math.round(
       profiles.find((profile) => profile.name === "23★ → 24★ Pitched lv200")?.p95Cost,
     ),
-    216_299_533_568,
+    705_328_014_152,
   );
   const pitched160TwentyThreeToTwentyFour = profiles.find(
     (profile) => profile.name === "23★ → 24★ Pitched lv160",
@@ -751,6 +884,20 @@ test("loads recommended saved upgrades when no profile library exists", () => {
     profiles.find((profile) => profile.name === "24★ → 25★ Kalos Eternals (10 spares)")
       ?.source.percentileCosts.strategy.length,
     10,
+  );
+  const kalosTwentyFourToTwentyFive = profiles.find(
+    (profile) => profile.name === "24★ → 25★ Kalos Eternals (10 spares)",
+  );
+  const limboTwentyFourToTwentyFive = profiles.find(
+    (profile) => profile.name === "24★ → 25★ Limbo Eternals (5 spares)",
+  );
+  assert.equal(
+    Math.round(kalosTwentyFourToTwentyFive.source.percentileCosts.expectedMeso),
+    1_142_975_544_957,
+  );
+  assert.equal(
+    kalosTwentyFourToTwentyFive.source.percentileCosts.expectedMeso,
+    limboTwentyFourToTwentyFive.source.percentileCosts.expectedMeso,
   );
   assert.equal(
     formatStrategy(
@@ -826,6 +973,10 @@ test("loads recommended saved upgrades when no profile library exists", () => {
     ["Real DP heart", "DP emblem", "DP weapon", "DP secondary"],
   );
   assert.equal(
+    profiles.filter((profile) => profile.type === "cubing").every((profile) => profile.source.cubeSale),
+    true,
+  );
+  assert.equal(
     profiles.find((profile) => profile.name === "Real DP heart")?.source.itemLevel,
     200,
   );
@@ -851,7 +1002,11 @@ test("loads recommended saved upgrades when no profile library exists", () => {
   );
   assert.equal(
     profiles.find((profile) => profile.name === "DP secondary")?.source.target,
-    "percAtt+36",
+    "percAtt+33",
+  );
+  assert.equal(
+    profiles.find((profile) => profile.name === "DP secondary")?.source.targetLabel,
+    "33%+ Attack/Magic Attack",
   );
   assert.equal(
     profiles.find((profile) => profile.name === "DP secondary")?.source.itemLevel,
@@ -860,6 +1015,24 @@ test("loads recommended saved upgrades when no profile library exists", () => {
   assert.equal(
     profiles.find((profile) => profile.name === "DP secondary")?.statGains["Attack%"],
     3,
+  );
+  const dpSecondary = profiles.find((profile) => profile.name === "DP secondary");
+  const expectedDpSecondaryCosts = calculateCubingProfileCosts({
+    cubeType: "black",
+    itemType: "secondary",
+    itemLevel: 140,
+    cubeSale: true,
+    desiredTier: "legendary",
+    target: "percAtt+33",
+    percentile: 0.85,
+  });
+  assert.equal(
+    dpSecondary.source.percentileCosts.expectedCost,
+    expectedDpSecondaryCosts.expectedCost,
+  );
+  assert.equal(
+    dpSecondary.source.percentileCosts.pTargetCost,
+    expectedDpSecondaryCosts.pTargetCost,
   );
 });
 
@@ -870,7 +1043,7 @@ test("keeps an explicitly empty saved upgrade library empty", () => {
   assert.deepEqual(loadProfiles(storage), []);
 });
 
-test("preserves locally saved recommended rows instead of forcing preset migrations", () => {
+test("refreshes stale locally saved rows without forcing preset migrations", () => {
   const storage = new MapStorage();
   storage.setItem(
     "sfcalc.enhancementPlanner.profiles.v2",
@@ -902,11 +1075,65 @@ test("preserves locally saved recommended rows instead of forcing preset migrati
   assert.equal(profile.name, "22★ → 23★ armor (160)");
   assert.equal(profile.source.itemType, "armor");
   assert.equal(profile.source.spareCount, undefined);
-  assert.equal(profile.p95Cost, 1);
+  assert.ok(profile.p95Cost > 1_000_000_000);
+  assert.ok(profile.source.percentileCosts.pTargetCost > 1_000_000_000);
 });
 
-test("preserves stale local saved rows instead of forcing recommended replacements", () => {
+test("reloads locally saved rows that match current recommended profile ids", () => {
   const storage = new MapStorage();
+  storage.setItem(
+    "sfcalc.enhancementPlanner.profiles.v2",
+    JSON.stringify([
+      {
+        id: "recommended-cube-secondary-double-prime-attack",
+        name: "Old DP secondary",
+        type: "cubing",
+        statGains: { "Attack%": 3 },
+        p50Cost: 1,
+        p75Cost: 1,
+        p95Cost: 1,
+        notes: "stale local recommended row",
+        source: {
+          cubeType: "black",
+          itemType: "secondary",
+          itemLevel: 200,
+          cubeSale: false,
+          desiredTier: "legendary",
+          target: "percAtt+36",
+          targetLabel: "36%+ Attack/Magic Attack",
+          percentile: 0.85,
+          percentileCosts: {
+            p50Cost: 1,
+            p75Cost: 1,
+            pTargetCost: 1,
+            p95Cost: 1,
+          },
+        },
+      },
+    ]),
+  );
+
+  const [profile] = loadProfiles(storage);
+
+  assert.equal(profile.id, "recommended-cube-secondary-double-prime-attack");
+  assert.equal(profile.name, "DP secondary");
+  assert.equal(profile.source.itemLevel, 140);
+  assert.equal(profile.source.target, "percAtt+33");
+  assert.equal(profile.source.targetLabel, "33%+ Attack/Magic Attack");
+  assert.equal(profile.notes, "");
+  assert.ok(profile.source.percentileCosts.pTargetCost > 1_000_000_000_000);
+});
+
+test("refreshes custom saved rows with stale cost snapshots when source settings are available", () => {
+  const storage = new MapStorage();
+  const expectedCosts = calculateStarforceProfileCosts({
+    itemLevel: 160,
+    startStar: 0,
+    targetStar: 24,
+    spareCount: 9,
+    hitProbability: 0.85,
+    events: {},
+  });
   storage.setItem(
     "sfcalc.enhancementPlanner.profiles.v2",
     JSON.stringify([
@@ -929,7 +1156,7 @@ test("preserves stale local saved rows instead of forcing recommended replacemen
           percentileCosts: {
             p50Cost: 186_000_000_000,
             p75Cost: 186_000_000_000,
-            p85Cost: 186_000_000_000,
+            pTargetCost: 186_000_000_000,
             p95Cost: 186_000_000_000,
             strategy: [],
           },
@@ -945,7 +1172,90 @@ test("preserves stale local saved rows instead of forcing recommended replacemen
   assert.equal(profile.source.startStar, 0);
   assert.equal(profile.source.targetStar, 24);
   assert.equal(profile.source.spareCount, 9);
-  assert.equal(profile.source.percentileCosts.p95Cost, 186_000_000_000);
+  assert.equal(profile.source.percentileCosts.pTargetCost, expectedCosts.pTargetCost);
+  assert.equal(profile.source.percentileCosts.achievedProbability, expectedCosts.achievedProbability);
+  assert.equal(profile.source.percentileCosts.guaranteeMet, expectedCosts.guaranteeMet);
+  assert.equal(profile.source.percentileCosts.p95Cost, expectedCosts.p95Cost);
+});
+
+test("refreshes custom cubing rows with stale cost snapshots when source settings are available", () => {
+  const storage = new MapStorage();
+  const expectedCosts = calculateCubingProfileCosts({
+    cubeType: "red",
+    itemType: "weapon",
+    itemLevel: 250,
+    desiredTier: "legendary",
+    target: "lineAtt+3",
+    percentile: 0.85,
+  });
+  storage.setItem(
+    "sfcalc.enhancementPlanner.profiles.v2",
+    JSON.stringify([
+      {
+        id: "legacy-cubing-row",
+        name: "3L attack weapon",
+        type: "cubing",
+        statGains: { "Attack%": 39 },
+        p50Cost: 1,
+        p75Cost: 1,
+        p95Cost: 1,
+        notes: "",
+        source: {
+          cubeType: "red",
+          itemType: "weapon",
+          itemLevel: 250,
+          desiredTier: "legendary",
+          target: "lineAtt+3",
+          percentile: 0.85,
+          percentileCosts: {
+            p85Cost: 109_471_500_000,
+            p85Cubes: 8_262,
+            expectedCost: 57_708_161_355,
+          },
+        },
+      },
+    ]),
+  );
+
+  const [profile] = loadProfiles(storage);
+
+  assert.equal(profile.id, "legacy-cubing-row");
+  assert.equal(profile.name, "3L attack weapon");
+  assert.equal(profile.source.percentileCosts.pTargetCost, expectedCosts.pTargetCost);
+  assert.equal(profile.source.percentileCosts.pTargetCubes, expectedCosts.pTargetCubes);
+  assert.equal(profile.source.percentileCosts.costVariance, expectedCosts.costVariance);
+});
+
+test("normalizes legacy saved target-cost cache fields when a row cannot be recalculated", () => {
+  const storage = new MapStorage();
+  storage.setItem(
+    "sfcalc.enhancementPlanner.profiles.v2",
+    JSON.stringify([
+      {
+        id: "legacy-manual-cost-row",
+        name: "Legacy manual row",
+        type: "custom",
+        statGains: { "Attack%": 3 },
+        p50Cost: 1,
+        p75Cost: 1,
+        p95Cost: 1,
+        notes: "",
+        source: {
+          percentileCosts: {
+            p85Cost: 109_471_500_000,
+            p85Cubes: 8_262,
+            expectedCost: 57_708_161_355,
+          },
+        },
+      },
+    ]),
+  );
+
+  const [profile] = loadProfiles(storage);
+
+  assert.equal(profile.id, "legacy-manual-cost-row");
+  assert.equal(profile.source.percentileCosts.pTargetCost, 109_471_500_000);
+  assert.equal(profile.source.percentileCosts.p85Cost, 109_471_500_000);
 });
 
 test("the built-in recommended preset exposes the updated rows", () => {
@@ -967,7 +1277,7 @@ test("the built-in recommended preset exposes the updated rows", () => {
   );
 });
 
-test("preserves stale recommended-id rows in named saved-upgrade presets", () => {
+test("reloads stale recommended-id rows in named saved-upgrade presets", () => {
   const storage = new MapStorage();
   storage.setItem(
     "sfcalc.enhancementPlanner.profilePresets.v1",
@@ -995,7 +1305,7 @@ test("preserves stale recommended-id rows in named saved-upgrade presets", () =>
               percentileCosts: {
                 p50Cost: 39_000_000_000,
                 p75Cost: 39_000_000_000,
-                p85Cost: 39_000_000_000,
+                pTargetCost: 39_000_000_000,
                 p95Cost: 39_000_000_000,
                 requiredSpares: 12,
                 strategy: [{ star: 15, nextStar: 16, mode: "1" }],
@@ -1011,14 +1321,24 @@ test("preserves stale recommended-id rows in named saved-upgrade presets", () =>
   const [profile] = preset.profiles;
 
   assert.equal(profile.id, "recommended-sf-22-23-pitched-160");
-  assert.equal(profile.source.percentileCosts.requiredSpares, 12);
-  assert.equal(formatStrategy(profile.source.percentileCosts.strategy), "1");
+  assert.equal(profile.source.percentileCosts.requiredSpares, 2);
+  assert.equal(
+    formatStrategy(
+      formatStarforceStrategyForSource(profile.source.percentileCosts.strategy, profile.source),
+      { showBaseSuffix: false },
+    ),
+    "**4/44/44",
+  );
+  assert.equal(
+    Math.round(profile.source.percentileCosts.pTargetCost / 1_000_000_000),
+    66,
+  );
 });
 
-test("preserves customized saved-upgrade presets", () => {
+test("preserves customized saved-upgrade presets without cost source settings", () => {
   const storage = new MapStorage();
   const customProfile = {
-    id: "recommended-sf-22-23-pitched-160",
+    id: "my-custom-pitched-row",
     name: "My custom Pitched row",
     type: "starforce",
     statGains: { Attack: 1 },
@@ -1026,24 +1346,6 @@ test("preserves customized saved-upgrade presets", () => {
     p75Cost: 39_000_000_000,
     p95Cost: 39_000_000_000,
     notes: "keep this",
-    source: {
-      itemType: "accessory",
-      itemLevel: 160,
-      startStar: 22,
-      targetStar: 23,
-      spareCount: 0,
-      hitProbability: 0.85,
-      events: { starCatch: false, costReduction30: true, boomReduction30: true },
-      additionalMesoCost: 123,
-      percentileCosts: {
-        p50Cost: 39_000_000_000,
-        p75Cost: 39_000_000_000,
-        p85Cost: 39_000_000_000,
-        p95Cost: 39_000_000_000,
-        requiredSpares: 12,
-        strategy: [{ star: 15, nextStar: 16, mode: "1" }],
-      },
-    },
   };
   storage.setItem(
     "sfcalc.enhancementPlanner.profilePresets.v1",
@@ -1062,9 +1364,62 @@ test("preserves customized saved-upgrade presets", () => {
   assert.equal(profile.name, "My custom Pitched row");
   assert.deepEqual(profile.statGains, { Attack: 1 });
   assert.equal(profile.notes, "keep this");
-  assert.equal(profile.source.events.starCatch, false);
-  assert.equal(profile.source.additionalMesoCost, 123);
-  assert.equal(profile.source.percentileCosts.requiredSpares, 12);
+  assert.equal(profile.source, null);
+  assert.equal(profile.p95Cost, 39_000_000_000);
+});
+
+test("refreshes custom saved-upgrade preset rows with stale cost snapshots", () => {
+  const storage = new MapStorage();
+  const expectedCosts = calculateCubingProfileCosts({
+    cubeType: "red",
+    itemType: "weapon",
+    itemLevel: 250,
+    desiredTier: "legendary",
+    target: "lineAtt+3",
+    percentile: 0.85,
+  });
+  storage.setItem(
+    "sfcalc.enhancementPlanner.profilePresets.v1",
+    JSON.stringify([
+      {
+        id: "my-preset",
+        name: "My preset",
+        profiles: [
+          {
+            id: "my-custom-cubing-row",
+            name: "My custom cubing row",
+            type: "cubing",
+            statGains: { "Attack%": 3 },
+            p50Cost: 1,
+            p75Cost: 1,
+            p95Cost: 1,
+            notes: "keep this",
+            source: {
+              cubeType: "red",
+              itemType: "weapon",
+              itemLevel: 250,
+              desiredTier: "legendary",
+              target: "lineAtt+3",
+              percentile: 0.85,
+              percentileCosts: {
+                p85Cost: 109_471_500_000,
+                p85Cubes: 8_262,
+              },
+            },
+          },
+        ],
+      },
+    ]),
+  );
+
+  const [preset] = loadProfilePresets(storage);
+  const [profile] = preset.profiles;
+
+  assert.equal(profile.id, "my-custom-cubing-row");
+  assert.equal(profile.name, "My custom cubing row");
+  assert.equal(profile.notes, "keep this");
+  assert.equal(profile.source.percentileCosts.pTargetCost, expectedCosts.pTargetCost);
+  assert.equal(profile.source.percentileCosts.costVariance, expectedCosts.costVariance);
 });
 
 test("saves and loads stat-equivalence rows and profiles", () => {
@@ -1111,32 +1466,27 @@ test("saves and loads named stat-equivalence presets", () => {
 
 test("saves and loads named saved-upgrade presets", () => {
   const storage = new MapStorage();
-  const profile = validateProfileInput({
-    id: "profile-1",
-    name: "21 to 22 armor",
-    type: "starforce",
-    statGains: {},
-    p50Cost: 10_000_000_000,
-    p75Cost: 10_000_000_000,
-    p95Cost: 10_000_000_000,
-    notes: "",
-    source: {
-      itemType: "armor",
-      itemLevel: 250,
-      startStar: 21,
-      targetStar: 22,
-      spareCount: 10,
-      hitProbability: 0.85,
-      events: {},
-      percentileCosts: {
-        p50Cost: 10_000_000_000,
-        p75Cost: 10_000_000_000,
-        p85Cost: 10_000_000_000,
-        p95Cost: 10_000_000_000,
-        strategy: [],
+  const [profile] = refreshStarforceProfileCosts([
+    validateProfileInput({
+      id: "profile-1",
+      name: "21 to 22 armor",
+      type: "starforce",
+      statGains: {},
+      p50Cost: 10_000_000_000,
+      p75Cost: 10_000_000_000,
+      p95Cost: 10_000_000_000,
+      notes: "",
+      source: {
+        itemType: "armor",
+        itemLevel: 250,
+        startStar: 21,
+        targetStar: 22,
+        spareCount: 10,
+        hitProbability: 0.85,
+        events: {},
       },
-    },
-  });
+    }),
+  ]);
   const presets = [
     validateProfilePresetInput({
       id: "upgrade-preset-1",

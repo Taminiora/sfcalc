@@ -29,15 +29,60 @@ function getRecoverySum(valuesByStar, restoreStar, star) {
   return sum;
 }
 
-function getExpectedTapWithRecovery({ adjustedTap, recoveryMeso, recoveryBooms }) {
+function getRewardVariance({
+  successRate,
+  failureProbability,
+  boomProbability,
+  mean,
+  recoveryMean,
+  recoveryVariance,
+  boomReward,
+}) {
+  const boomContinuation = boomReward + recoveryMean + mean;
+  const delayedMean =
+    failureProbability * mean + boomProbability * boomContinuation;
+
+  return (
+    failureProbability * mean ** 2 +
+    boomProbability * recoveryVariance +
+    boomProbability * boomContinuation ** 2 -
+    delayedMean ** 2
+  ) / successRate;
+}
+
+function getExpectedTapWithRecovery({
+  adjustedTap,
+  recoveryMeso,
+  recoveryBooms,
+  recoveryMesoVariance = 0,
+  recoveryBoomVariance = 0,
+}) {
   // Every attempt eventually succeeds or booms; failures only repeat the same state.
   const expectedMeso =
     (adjustedTap.tapCost + adjustedTap.boomProbability * recoveryMeso) /
     adjustedTap.successRate;
   const expectedBooms =
     (adjustedTap.boomProbability * (1 + recoveryBooms)) / adjustedTap.successRate;
+  const mesoVariance = getRewardVariance({
+    successRate: adjustedTap.successRate,
+    failureProbability: adjustedTap.failureProbability,
+    boomProbability: adjustedTap.boomProbability,
+    mean: expectedMeso,
+    recoveryMean: recoveryMeso,
+    recoveryVariance: recoveryMesoVariance,
+    boomReward: 0,
+  });
+  const boomVariance = getRewardVariance({
+    successRate: adjustedTap.successRate,
+    failureProbability: adjustedTap.failureProbability,
+    boomProbability: adjustedTap.boomProbability,
+    mean: expectedBooms,
+    recoveryMean: recoveryBooms,
+    recoveryVariance: recoveryBoomVariance,
+    boomReward: 1,
+  });
 
-  return { expectedMeso, expectedBooms };
+  return { expectedMeso, expectedBooms, mesoVariance, boomVariance };
 }
 
 function getReachableStars({ itemLevel, startStar, targetStar, events, modeMap }) {
@@ -75,6 +120,8 @@ function getReachableStars({ itemLevel, startStar, targetStar, events, modeMap }
 export function evaluatePolicy({ itemLevel, startStar, targetStar, events, modeMap }) {
   const mesoToNextByStar = new Map();
   const boomsToNextByStar = new Map();
+  const mesoVarianceToNextByStar = new Map();
+  const boomVarianceToNextByStar = new Map();
   const targetRows = [];
   const strategyRows = [];
   const reachableStars = getReachableStars({ itemLevel, startStar, targetStar, events, modeMap });
@@ -86,14 +133,20 @@ export function evaluatePolicy({ itemLevel, startStar, targetStar, events, modeM
     const restoreStar = RESTORE_LEVEL[star];
     const recoveryMeso = getRecoverySum(mesoToNextByStar, restoreStar, star);
     const recoveryBooms = getRecoverySum(boomsToNextByStar, restoreStar, star);
-    const { expectedMeso, expectedBooms } = getExpectedTapWithRecovery({
+    const recoveryMesoVariance = getRecoverySum(mesoVarianceToNextByStar, restoreStar, star);
+    const recoveryBoomVariance = getRecoverySum(boomVarianceToNextByStar, restoreStar, star);
+    const { expectedMeso, expectedBooms, mesoVariance, boomVariance } = getExpectedTapWithRecovery({
       adjustedTap,
       recoveryMeso,
       recoveryBooms,
+      recoveryMesoVariance,
+      recoveryBoomVariance,
     });
 
     mesoToNextByStar.set(star, expectedMeso);
     boomsToNextByStar.set(star, expectedBooms);
+    mesoVarianceToNextByStar.set(star, mesoVariance);
+    boomVarianceToNextByStar.set(star, boomVariance);
 
     const row = {
       star,
@@ -104,6 +157,8 @@ export function evaluatePolicy({ itemLevel, startStar, targetStar, events, modeM
       ...adjustedTap,
       expectedMeso,
       expectedBooms,
+      mesoVariance,
+      boomVariance,
     };
 
     if (modeMap.has(star) || (star > MODE_END_STAR && reachableStars.has(star))) {
@@ -119,6 +174,8 @@ export function evaluatePolicy({ itemLevel, startStar, targetStar, events, modeM
     rows: strategyRows,
     expectedMeso: targetRows.reduce((sum, row) => sum + row.expectedMeso, 0),
     expectedBooms: targetRows.reduce((sum, row) => sum + row.expectedBooms, 0),
+    mesoVariance: targetRows.reduce((sum, row) => sum + row.mesoVariance, 0),
+    boomVariance: targetRows.reduce((sum, row) => sum + row.boomVariance, 0),
   };
 }
 
@@ -171,23 +228,40 @@ export function formatStarforceStrategyForSource(strategy, source = {}) {
 }
 
 function createTailTotals() {
-  return new Map(RECOVERY_ANCHOR_STARS.map((star) => [star, { meso: 0, booms: 0 }]));
+  return new Map(
+    RECOVERY_ANCHOR_STARS.map((star) => [
+      star,
+      { meso: 0, booms: 0, mesoVariance: 0, boomVariance: 0 },
+    ]),
+  );
 }
 
 function getTailTotal(tailTotals, restoreStar) {
-  return tailTotals.get(restoreStar) ?? { meso: 0, booms: 0 };
+  return tailTotals.get(restoreStar) ?? {
+    meso: 0,
+    booms: 0,
+    mesoVariance: 0,
+    boomVariance: 0,
+  };
 }
 
 function appendTailTotals(tailTotals, star, row) {
   const nextTailTotals = new Map();
   for (const anchorStar of RECOVERY_ANCHOR_STARS) {
-    const current = tailTotals.get(anchorStar) ?? { meso: 0, booms: 0 };
+    const current = tailTotals.get(anchorStar) ?? {
+      meso: 0,
+      booms: 0,
+      mesoVariance: 0,
+      boomVariance: 0,
+    };
     nextTailTotals.set(
       anchorStar,
       star >= anchorStar
         ? {
             meso: current.meso + row.expectedMeso,
             booms: current.booms + row.expectedBooms,
+            mesoVariance: current.mesoVariance + row.mesoVariance,
+            boomVariance: current.boomVariance + row.boomVariance,
           }
         : current,
     );
@@ -208,10 +282,12 @@ function advancePolicyState({
   const adjustedTap = getAdjustedTap({ itemLevel, star, tier, events });
   const restoreStar = RESTORE_LEVEL[star];
   const recovery = getTailTotal(state.tailTotals, restoreStar);
-  const { expectedMeso, expectedBooms } = getExpectedTapWithRecovery({
+  const { expectedMeso, expectedBooms, mesoVariance, boomVariance } = getExpectedTapWithRecovery({
     adjustedTap,
     recoveryMeso: recovery.meso,
     recoveryBooms: recovery.booms,
+    recoveryMesoVariance: recovery.mesoVariance,
+    recoveryBoomVariance: recovery.boomVariance,
   });
   const usesMode = modeStars.has(star);
   const row = {
@@ -222,6 +298,8 @@ function advancePolicyState({
     ...adjustedTap,
     expectedMeso,
     expectedBooms,
+    mesoVariance,
+    boomVariance,
   };
   const modeMap = new Map(state.modeMap);
   if (usesMode) {
@@ -233,6 +311,8 @@ function advancePolicyState({
     rows: usesMode || star > MODE_END_STAR ? [...state.rows, row] : state.rows,
     expectedMeso: state.expectedMeso + (star >= startStar ? expectedMeso : 0),
     expectedBooms: state.expectedBooms + (star >= startStar ? expectedBooms : 0),
+    mesoVariance: state.mesoVariance + (star >= startStar ? mesoVariance : 0),
+    boomVariance: state.boomVariance + (star >= startStar ? boomVariance : 0),
     tailTotals: appendTailTotals(state.tailTotals, star, row),
   };
 }
@@ -240,7 +320,12 @@ function advancePolicyState({
 function getDominanceValues(state) {
   const values = [state.expectedMeso, state.expectedBooms];
   for (const anchorStar of RECOVERY_ANCHOR_STARS) {
-    const tail = state.tailTotals.get(anchorStar) ?? { meso: 0, booms: 0 };
+    const tail = state.tailTotals.get(anchorStar) ?? {
+      meso: 0,
+      booms: 0,
+      mesoVariance: 0,
+      boomVariance: 0,
+    };
     values.push(tail.meso, tail.booms);
   }
   return values;
@@ -315,6 +400,8 @@ export function getPrunedPolicyCandidates({ itemLevel, startStar, targetStar, ev
       rows: [],
       expectedMeso: 0,
       expectedBooms: 0,
+      mesoVariance: 0,
+      boomVariance: 0,
       tailTotals: createTailTotals(),
     },
   ];
@@ -351,6 +438,8 @@ export function getPrunedPolicyCandidates({ itemLevel, startStar, targetStar, ev
     }),
     expectedMeso: candidate.expectedMeso,
     expectedBooms: candidate.expectedBooms,
+    mesoVariance: candidate.mesoVariance,
+    boomVariance: candidate.boomVariance,
     modeMap: candidate.modeMap,
     normalizedEvents,
   }));

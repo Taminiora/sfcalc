@@ -397,10 +397,10 @@ test("saved profile costs include recursive recovery strategy for 22 to 23", () 
 test("calculates star-force percentile costs for saved upgrade profiles with spare inventory", () => {
   const result = calculateStarforceProfileCosts({
     itemLevel: 250,
-    startStar: 15,
+    startStar: 0,
     targetStar: 22,
-    spareCount: 20,
-    hitProbability: 0.95,
+    spareCount: 15,
+    hitProbability: 0.85,
     events: {
       starCatch: true,
       costReduction30: true,
@@ -410,13 +410,15 @@ test("calculates star-force percentile costs for saved upgrade profiles with spa
 
   assert.ok(result.p50Cost > 0);
   assert.ok(result.p75Cost >= result.p50Cost);
+  assert.ok(result.pTargetCost >= result.p75Cost);
   assert.ok(result.p95Cost >= result.p75Cost);
-  assert.equal(result.p50Cost, result.expectedMeso);
-  assert.equal(result.p75Cost, result.expectedMeso);
-  assert.equal(result.p95Cost, result.expectedMeso);
-  assert.equal(result.availableSpares, 20);
+  assert.ok(result.p50Cost < result.expectedMeso);
+  assert.ok(result.pTargetCost > result.expectedMeso);
+  assert.equal(Math.round(result.expectedMeso / 10_000_000), 3183);
+  assert.equal(Math.round(result.pTargetCost / 10_000_000), 5144);
+  assert.equal(result.availableSpares, 15);
   assert.ok(result.requiredSpares >= 0);
-  assert.ok(result.achievedProbability >= 0.95);
+  assert.ok(result.achievedProbability >= 0.85);
   assert.equal(result.guaranteeMet, true);
   assert.equal(result.strategy.length, 7);
 });

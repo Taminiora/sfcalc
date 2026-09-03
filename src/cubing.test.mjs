@@ -107,7 +107,7 @@ test("hides prime-line shortcuts while preserving explicit prime target math", (
   assert.ok(triplePrimeProbability < doublePrimeThreeLineProbability);
 });
 
-test("calculates p85 cubing cost by default from target probability and MathBro cube costs", () => {
+test("calculates cubing expected and target-odds costs with geometric variance", () => {
   const costs = calculateCubingProfileCosts({
     cubeType: "red",
     itemType: "weapon",
@@ -121,10 +121,13 @@ test("calculates p85 cubing cost by default from target probability and MathBro 
   assert.equal(costs.cubeCost, 12_000_000);
   assert.equal(costs.revealCost, 1_250_000);
   assert.ok(costs.successProbability > 0);
-  assert.ok(costs.p85Cubes > costs.meanCubes);
+  assert.equal(costs.targetPercentile, 0.95);
+  assert.ok(costs.pTargetCubes > costs.meanCubes);
+  assert.equal(costs.cubeVariance, (1 - costs.successProbability) / costs.successProbability ** 2);
+  assert.equal(costs.costVariance, costs.cubeVariance * costs.costPerCube ** 2);
   assert.equal(costs.expectedCost, costs.meanCubes * (costs.cubeCost + costs.revealCost));
-  assert.equal(costs.p85Cost, costs.p85Cubes * (costs.cubeCost + costs.revealCost));
-  assert.equal(costs.p95Cost, costs.p85Cost);
+  assert.equal(costs.pTargetCost, costs.pTargetCubes * (costs.cubeCost + costs.revealCost));
+  assert.equal(costs.p95Cost, costs.pTargetCost);
 });
 
 test("applies cube sale to cube cost but not reveal cost", () => {

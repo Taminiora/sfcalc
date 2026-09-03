@@ -1,7 +1,7 @@
 import {
   calculateCubingProfileCosts,
   getCubingStrategyOptions,
-} from "./cubing.mjs?v=20260617-cd-hat-options";
+} from "./cubing.mjs?v=20260903-target-cost";
 import {
   ASTRA_REPLACEMENT_COST as ASTRA_SECONDARY_REPLACEMENT_COST,
   calculateAstraStarforceProfileCosts,
@@ -32,7 +32,7 @@ import {
   validateProfilePresetInput,
   validateStatEquivalenceInput,
   validateStatEquivalencePresetInput,
-} from "./profiles.mjs";
+} from "./profiles.mjs?v=20260903-sf-target-cost";
 import {
   calculateStarforceProfileCosts,
   formatStarforceStrategyForSource,
@@ -101,6 +101,7 @@ const profileFields = {
   cubeSale: document.querySelector("#profile-cube-sale"),
   cubingDesiredTier: document.querySelector("#profile-cubing-desired-tier"),
   cubingTarget: document.querySelector("#profile-cubing-target"),
+  cubingHitProbability: document.querySelector("#profile-cubing-hit-probability"),
   additionalMesoCost: document.querySelector("#profile-additional-meso-cost"),
   notes: document.querySelector("#profile-notes"),
 };
@@ -601,9 +602,9 @@ function getSavedExpectedSortValue(profile) {
 function getSavedTargetOddsSortValue(profile) {
   const costs = profile.source?.percentileCosts ?? {};
   if (profile.type === "cubing") {
-    return Number(costs.p85Cost ?? profile.p95Cost);
+    return Number(costs.pTargetCost ?? costs.p85Cost ?? profile.p95Cost);
   }
-  return Number(costs.p85Cost ?? costs.expectedMeso ?? profile.p95Cost);
+  return Number(costs.pTargetCost ?? costs.p85Cost ?? costs.expectedMeso ?? profile.p95Cost);
 }
 
 const PROFILE_SORTERS = {
@@ -710,8 +711,8 @@ function parseOptionalNumber(value) {
 function formatSavedTargetOdds(profile) {
   const costs = profile.source?.percentileCosts ?? {};
   if (profile.type === "cubing") {
-    const targetCost = Number(costs.p85Cost ?? profile.p95Cost);
-    const targetCubes = Number(costs.p85Cubes ?? costs.p95Cubes);
+    const targetCost = Number(costs.pTargetCost ?? costs.p85Cost ?? profile.p95Cost);
+    const targetCubes = Number(costs.pTargetCubes ?? costs.p85Cubes ?? costs.p95Cubes);
     if (!Number.isFinite(targetCost)) {
       return "-";
     }
@@ -722,7 +723,9 @@ function formatSavedTargetOdds(profile) {
     `;
   }
 
-  const targetOddsMeso = Number(costs.p85Cost ?? costs.expectedMeso ?? profile.p95Cost);
+  const targetOddsMeso = Number(
+    costs.pTargetCost ?? costs.p85Cost ?? costs.expectedMeso ?? profile.p95Cost,
+  );
   const requiredUnits = Number(costs.requiredBooms ?? costs.requiredSpares);
   const availableUnits = parseOptionalNumber(costs.availableSpares);
   const displayedUnits = Number.isFinite(availableUnits) ? availableUnits : requiredUnits;
@@ -999,6 +1002,7 @@ function clearProfileForm() {
   profileFields.cubeType.value = "red";
   profileFields.cubeSale.checked = false;
   profileFields.cubingDesiredTier.value = "legendary";
+  profileFields.cubingHitProbability.value = "85";
   profileFields.additionalMesoCost.value = "0";
   renderCubingTargetOptions("percAtt+39");
   profileFields.notes.value = "";
@@ -1036,6 +1040,9 @@ function fillProfileForm(profile) {
   profileFields.cubeType.value = profile.source?.cubeType ?? "red";
   profileFields.cubeSale.checked = Boolean(profile.source?.cubeSale);
   profileFields.cubingDesiredTier.value = profile.source?.desiredTier ?? "legendary";
+  profileFields.cubingHitProbability.value = profile.source?.percentile
+    ? profile.source.percentile * 100
+    : 85;
   profileFields.additionalMesoCost.value = formatInteger(profile.source?.additionalMesoCost ?? 0);
   renderCubingTargetOptions(profile.source?.target ?? "percAtt+39");
   profileFields.notes.value = profile.notes;
@@ -1216,6 +1223,7 @@ profileForm.addEventListener("submit", (event) => {
           desiredTier: profileFields.cubingDesiredTier.value,
           target: profileFields.cubingTarget.value,
           targetLabel: getSelectedCubingStrategyLabel(),
+          percentile: Number(profileFields.cubingHitProbability.value) / 100,
           additionalMesoCost,
         }
       : {

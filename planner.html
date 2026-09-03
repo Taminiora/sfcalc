@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Enhancement Planner</title>
-    <link rel="stylesheet" href="./src/styles.css?v=20260622-profile-presets">
+    <link rel="stylesheet" href="./src/styles.css?v=20260903-cubing-fit">
   </head>
   <body>
     <main class="app-shell planner-shell">
@@ -209,10 +209,16 @@
                     <select id="profile-cubing-target"></select>
                   </label>
                 </div>
-                <label class="checkbox-label">
-                  <input id="profile-cube-sale" type="checkbox">
-                  <span>Cube sale (25% off cube cost)</span>
-                </label>
+                <div class="two-col compact-number-grid cubing-odds-grid">
+                  <label>
+                    <span>Target odds (%)</span>
+                    <input id="profile-cubing-hit-probability" inputmode="decimal" max="99.99" min="1" step="0.1" type="number" value="85">
+                  </label>
+                  <label class="checkbox-label">
+                    <input id="profile-cube-sale" type="checkbox">
+                    <span>Cube sale (25% off cube cost)</span>
+                  </label>
+                </div>
               </section>
               <details class="stat-gain-details" open>
                 <summary>Stat changes</summary>
@@ -454,6 +460,6 @@
       </section>
     </main>
 
-    <script type="module" src="./src/planner.mjs?v=20260622-profile-presets"></script>
+    <script type="module" src="./src/planner.mjs?v=20260903-sf-target-cost"></script>
   </body>
 </html>
