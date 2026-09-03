@@ -16,6 +16,7 @@ const PROFILE_STORAGE_KEY = "sfcalc.enhancementPlanner.profiles.v2";
 const STAT_EQUIVALENCE_STORAGE_KEY = "sfcalc.enhancementPlanner.statEquivalence.v2";
 const STAT_EQUIVALENCE_PRESET_STORAGE_KEY = "sfcalc.enhancementPlanner.statEquivalencePresets.v1";
 const PROFILE_PRESET_STORAGE_KEY = "sfcalc.enhancementPlanner.profilePresets.v1";
+const PROFILE_COST_CACHE_VERSION = 1;
 
 const PRESENTED_STAT_RENAMES = Object.freeze({
   DEX: "Main Stat",
@@ -116,6 +117,13 @@ function getCostInMeso(costB) {
   return Number(costB) * 1_000_000_000;
 }
 
+function withCostCacheVersion(costs) {
+  return {
+    ...costs,
+    cacheVersion: PROFILE_COST_CACHE_VERSION,
+  };
+}
+
 function getStarforceStrategyRows(strategy = "111/11/11", targetStar = 22) {
   const modes = String(strategy).replace(/\//g, "").split("");
   const rows = STRATEGY_STARS.map((star, index) => ({
@@ -177,7 +185,7 @@ function createPresetStarforceProfile({
     p50Cost,
     p75Cost,
     p95Cost,
-    percentileCosts: {
+    percentileCosts: withCostCacheVersion({
       p50Cost,
       p75Cost,
       pTargetCost,
@@ -195,7 +203,7 @@ function createPresetStarforceProfile({
       expectedTotalCost,
       expectedBooms,
       strategy: getStarforceStrategyRows(strategy, targetStar),
-    },
+    }),
     notes,
   });
 }
@@ -211,15 +219,17 @@ function createPresetCubingProfile({
   statGains,
   notes = "",
 }) {
-  const percentileCosts = calculateCubingProfileCosts({
-    cubeType: "black",
-    itemType,
-    itemLevel,
-    cubeSale,
-    desiredTier: "legendary",
-    target,
-    percentile: 0.85,
-  });
+  const percentileCosts = withCostCacheVersion(
+    calculateCubingProfileCosts({
+      cubeType: "black",
+      itemType,
+      itemLevel,
+      cubeSale,
+      desiredTier: "legendary",
+      target,
+      percentile: 0.85,
+    }),
+  );
   return createDefaultCubingProfile({
     id,
     name,
@@ -1110,6 +1120,7 @@ function hasFreshStarforceCostSnapshot(profile) {
   ];
   const requiredBoomFields = ["p50Booms", "p75Booms", "p95Booms"];
   return (
+    costs.cacheVersion === PROFILE_COST_CACHE_VERSION &&
     requiredCostFields.every((field) => hasFiniteCostValue(costs, field)) &&
     requiredBoomFields.every((field) => Number.isInteger(Number(costs[field]))) &&
     typeof costs.guaranteeMet === "boolean" &&
@@ -1135,6 +1146,7 @@ function hasFreshCubingCostSnapshot(profile) {
     "costVariance",
   ];
   return (
+    costs.cacheVersion === PROFILE_COST_CACHE_VERSION &&
     requiredCostFields.every((field) => hasFiniteCostValue(costs, field)) &&
     Number.isFinite(Number(costs.targetPercentile)) &&
     typeof costs.strategy === "string"
@@ -1163,17 +1175,19 @@ export function refreshStarforceProfileCosts(profiles) {
     const validProfile = validateProfileInput(profile);
     if (validProfile.type === "cubing" && hasCubingCostSource(validProfile.source)) {
       const additionalMesoCost = getAdditionalMesoCost(validProfile.source);
-      const costs = applyAdditionalMesoCost(
-        calculateCubingProfileCosts({
-          cubeType: validProfile.source.cubeType,
-          itemType: validProfile.source.itemType,
-          itemLevel: Number(validProfile.source.itemLevel),
-          cubeSale: Boolean(validProfile.source.cubeSale),
-          desiredTier: validProfile.source.desiredTier,
-          target: validProfile.source.target,
-          percentile: Number(validProfile.source.percentile ?? 0.85),
-        }),
-        additionalMesoCost,
+      const costs = withCostCacheVersion(
+        applyAdditionalMesoCost(
+          calculateCubingProfileCosts({
+            cubeType: validProfile.source.cubeType,
+            itemType: validProfile.source.itemType,
+            itemLevel: Number(validProfile.source.itemLevel),
+            cubeSale: Boolean(validProfile.source.cubeSale),
+            desiredTier: validProfile.source.desiredTier,
+            target: validProfile.source.target,
+            percentile: Number(validProfile.source.percentile ?? 0.85),
+          }),
+          additionalMesoCost,
+        ),
       );
 
       return validateProfileInput({
@@ -1196,27 +1210,29 @@ export function refreshStarforceProfileCosts(profiles) {
     const additionalMesoCost = getAdditionalMesoCost(validProfile.source);
     const effectiveSource = getEffectiveStarforceCostSource(validProfile.source);
     const isAstraSecondary = isAstraSecondarySource(validProfile.source);
-    const costs = applyAdditionalMesoCost(
-      isAstraSecondary
-        ? calculateAstraStarforceProfileCosts({
-            startStar: Number(validProfile.source.startStar),
-            targetStar: Number(validProfile.source.targetStar),
-            hitProbability: Number(validProfile.source.hitProbability),
-            events: validProfile.source.events ?? {},
-          })
-        : calculateStarforceProfileCosts({
-            itemLevel: Number(effectiveSource.itemLevel),
-            startStar: Number(validProfile.source.startStar),
-            targetStar: Number(validProfile.source.targetStar),
-            spareCount:
-              validProfile.source.spareCount === undefined
-                ? undefined
-                : Number(validProfile.source.spareCount),
-            hitProbability: Number(validProfile.source.hitProbability),
-            events: validProfile.source.events ?? {},
-            replacementCostPerBoom: effectiveSource.replacementCostPerBoom,
-          }),
-      additionalMesoCost,
+    const costs = withCostCacheVersion(
+      applyAdditionalMesoCost(
+        isAstraSecondary
+          ? calculateAstraStarforceProfileCosts({
+              startStar: Number(validProfile.source.startStar),
+              targetStar: Number(validProfile.source.targetStar),
+              hitProbability: Number(validProfile.source.hitProbability),
+              events: validProfile.source.events ?? {},
+            })
+          : calculateStarforceProfileCosts({
+              itemLevel: Number(effectiveSource.itemLevel),
+              startStar: Number(validProfile.source.startStar),
+              targetStar: Number(validProfile.source.targetStar),
+              spareCount:
+                validProfile.source.spareCount === undefined
+                  ? undefined
+                  : Number(validProfile.source.spareCount),
+              hitProbability: Number(validProfile.source.hitProbability),
+              events: validProfile.source.events ?? {},
+              replacementCostPerBoom: effectiveSource.replacementCostPerBoom,
+            }),
+        additionalMesoCost,
+      ),
     );
 
     return validateProfileInput({

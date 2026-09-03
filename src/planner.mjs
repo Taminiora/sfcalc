@@ -32,7 +32,7 @@ import {
   validateProfilePresetInput,
   validateStatEquivalenceInput,
   validateStatEquivalencePresetInput,
-} from "./profiles.mjs?v=20260903-sf-target-cost";
+} from "./profiles.mjs?v=20260903-cost-cache";
 import {
   calculateStarforceProfileCosts,
   formatStarforceStrategyForSource,

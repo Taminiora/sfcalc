@@ -1226,6 +1226,60 @@ test("refreshes custom cubing rows with stale cost snapshots when source setting
   assert.equal(profile.source.percentileCosts.costVariance, expectedCosts.costVariance);
 });
 
+test("refreshes custom saved rows with complete but unversioned cost snapshots", () => {
+  const storage = new MapStorage();
+  const expectedCosts = calculateCubingProfileCosts({
+    cubeType: "red",
+    itemType: "weapon",
+    itemLevel: 250,
+    desiredTier: "legendary",
+    target: "lineAtt+3",
+    percentile: 0.85,
+  });
+  storage.setItem(
+    "sfcalc.enhancementPlanner.profiles.v2",
+    JSON.stringify([
+      {
+        id: "complete-old-cubing-row",
+        name: "Complete old cubing row",
+        type: "cubing",
+        statGains: { "Attack%": 39 },
+        p50Cost: 1,
+        p75Cost: 1,
+        p95Cost: 1,
+        notes: "",
+        source: {
+          cubeType: "red",
+          itemType: "weapon",
+          itemLevel: 250,
+          desiredTier: "legendary",
+          target: "lineAtt+3",
+          percentile: 0.85,
+          percentileCosts: {
+            p50Cost: 1,
+            p75Cost: 1,
+            pTargetCost: 1,
+            p95Cost: 1,
+            pTargetCubes: 1,
+            meanCubes: 1,
+            expectedCost: 1,
+            cubeVariance: 1,
+            costVariance: 1,
+            targetPercentile: 0.85,
+            strategy: "lineAtt+3",
+          },
+        },
+      },
+    ]),
+  );
+
+  const [profile] = loadProfiles(storage);
+
+  assert.equal(profile.id, "complete-old-cubing-row");
+  assert.equal(profile.source.percentileCosts.pTargetCost, expectedCosts.pTargetCost);
+  assert.equal(profile.source.percentileCosts.costVariance, expectedCosts.costVariance);
+});
+
 test("normalizes legacy saved target-cost cache fields when a row cannot be recalculated", () => {
   const storage = new MapStorage();
   storage.setItem(

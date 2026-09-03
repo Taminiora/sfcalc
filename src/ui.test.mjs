@@ -32,7 +32,7 @@ test("planner uses stable static asset URLs for production hosting", () => {
   assert.match(html, /src="\.\/src\/planner\.mjs\?v=\d{8}-[a-z0-9-]+"/);
   assert.doesNotMatch(html, /\?(?:fresh|reload)=/);
   assert.equal(script.includes('from "./cubing.mjs?v=20260903-target-cost"'), true);
-  assert.equal(script.includes('from "./profiles.mjs?v=20260903-sf-target-cost"'), true);
+  assert.equal(script.includes('from "./profiles.mjs?v=20260903-cost-cache"'), true);
   assert.equal(script.includes('from "./strategyFormat.mjs?v=20260617-strategy-display"'), true);
   assert.equal(script.includes('from "./plannerStarforce.mjs"'), true);
   assert.doesNotMatch(script, /from "\.\/[^"]+\?(?:fresh|reload)=/);
@@ -637,7 +637,7 @@ test("planner left-aligns editable input text", () => {
 test("planner additional stat changes accept signed values", () => {
   const script = readFileSync(new URL("./planner.mjs", import.meta.url), "utf8");
 
-  assert.equal(script.includes('from "./profiles.mjs?v=20260903-sf-target-cost"'), true);
+  assert.equal(script.includes('from "./profiles.mjs?v=20260903-cost-cache"'), true);
   assert.match(script, /<input data-stat-gain="\$\{row\.stat\}" inputmode="decimal" step="0\.01" type="number"/);
   assert.doesNotMatch(script, /data-stat-gain="\$\{row\.stat\}"[^>]*min="0"/);
   assert.equal(script.includes("statGains: readStatGains(optimizerStatGains)"), true);
