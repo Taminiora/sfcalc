@@ -629,7 +629,6 @@ export const DEFAULT_PROFILE_INPUTS = Object.freeze([
 ]);
 
 let recommendedProfilesCache = null;
-let recommendedProfilesByIdCache = null;
 
 function validateDefaultStatEquivalenceInput() {
   return validateStatEquivalenceInput({ className: DEFAULT_STAT_EQUIVALENCE_CLASS });
@@ -1279,27 +1278,16 @@ function getDefaultProfiles() {
   return recommendedProfilesCache.map(cloneProfile);
 }
 
-function getRecommendedProfilesById() {
-  recommendedProfilesByIdCache ??= new Map(
-    getDefaultProfiles().map((profile) => [profile.id, profile]),
-  );
-  return recommendedProfilesByIdCache;
-}
-
-function reloadRecommendedProfile(profile) {
-  const recommendedProfile = getRecommendedProfilesById().get(profile.id);
-  return recommendedProfile ? cloneProfile(recommendedProfile) : profile;
-}
-
 function normalizeLoadedProfile(profile) {
-  const validProfile = validateProfileInput(profile);
-  const normalizedProfile = normalizeLegacyPercentileCosts(reloadRecommendedProfile(validProfile));
+  const normalizedProfile = normalizeLoadedProfileWithoutCostRefresh(profile);
   return refreshProfileCostSnapshotIfStale(normalizedProfile).profile;
 }
 
 function normalizeLoadedProfileWithoutCostRefresh(profile) {
+  // Recommended IDs identify saved rows too; only an explicit preset load may
+  // replace their inputs. Cache refreshes must use the user's saved settings.
   const validProfile = validateProfileInput(profile);
-  return normalizeLegacyPercentileCosts(reloadRecommendedProfile(validProfile));
+  return normalizeLegacyPercentileCosts(validProfile);
 }
 
 function normalizeLoadedProfilePreset(preset, options = {}) {

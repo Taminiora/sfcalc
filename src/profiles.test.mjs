@@ -726,6 +726,53 @@ test("refreshes old Astra math in custom libraries and named presets without cha
   assert.equal(refreshStaleProfileCostSnapshots([updated]).didRefresh, false);
 });
 
+test("preserves edited recommended Astra odds across saved library and preset reloads", () => {
+  const recommended = getRecommendedProfiles().find((profile) => profile.id === "recommended-sf-astra-24-25");
+  const [edited] = refreshStarforceProfileCosts([{
+    ...recommended,
+    name: "My p65 Astra",
+    notes: "Keep these odds",
+    statGains: { Attack: -2 },
+    source: { ...recommended.source, hitProbability: 0.65 },
+  }]);
+  const storage = new MapStorage();
+  const preset = validateProfilePresetInput({ id: "my-p65", name: "P65 upgrades", profiles: [edited] });
+  saveProfiles(storage, [edited]);
+  saveProfilePresets(storage, [preset]);
+
+  for (const options of [{}, { refreshStaleCosts: false }]) {
+    assert.deepEqual(loadProfiles(storage, options), [edited]);
+    assert.deepEqual(loadProfilePresets(storage, options), [preset]);
+  }
+  assert.deepEqual(refreshStaleProfileCostSnapshots([edited]), { didRefresh: false, profiles: [edited] });
+  assert.deepEqual(refreshStaleProfilePresets([preset]), { didRefresh: false, profilePresets: [preset] });
+  assert.equal(getRecommendedProfiles().find((profile) => profile.id === recommended.id).source.hitProbability, 0.85);
+});
+
+test("refreshes stale recommended-id Astra costs using the saved p65 settings", () => {
+  const original = getRecommendedProfiles().find((profile) => profile.id === "recommended-sf-astra-24-25");
+  original.source.hitProbability = 0.65;
+  original.source.percentileCosts.astraCostModelVersion = 1;
+  original.source.percentileCosts.pTargetCost = 1;
+  const [expected] = refreshStarforceProfileCosts([original]);
+  const storage = new MapStorage();
+  saveProfiles(storage, [original]);
+  saveProfilePresets(storage, [{ id: "stale-p65", name: "Stale P65", profiles: [original] }]);
+
+  assert.deepEqual(loadProfiles(storage), [expected]);
+  assert.deepEqual(loadProfilePresets(storage)[0].profiles, [expected]);
+  const deferredProfiles = loadProfiles(storage, { refreshStaleCosts: false });
+  const deferredPresets = loadProfilePresets(storage, { refreshStaleCosts: false });
+  assert.equal(deferredProfiles[0].source.hitProbability, 0.65);
+  assert.equal(deferredProfiles[0].source.percentileCosts.pTargetCost, 1);
+  const refreshed = refreshStaleProfileCostSnapshots(deferredProfiles);
+  assert.equal(refreshed.didRefresh, true);
+  assert.deepEqual(refreshed.profiles, [expected]);
+  const refreshedPresets = refreshStaleProfilePresets(deferredPresets);
+  assert.equal(refreshedPresets.didRefresh, true);
+  assert.deepEqual(refreshedPresets.profilePresets[0].profiles, [expected]);
+});
+
 test("recommended cubing preset snapshots match current calculator output", () => {
   const profiles = getRecommendedProfiles().filter((profile) => profile.type === "cubing");
 
@@ -1137,7 +1184,7 @@ test("refreshes stale locally saved rows without forcing preset migrations", () 
   assert.ok(profile.source.percentileCosts.pTargetCost > 1_000_000_000);
 });
 
-test("reloads locally saved rows that match current recommended profile ids", () => {
+test("refreshes recommended-id cubing costs without replacing saved settings", () => {
   const storage = new MapStorage();
   storage.setItem(
     "sfcalc.enhancementPlanner.profiles.v2",
@@ -1172,14 +1219,25 @@ test("reloads locally saved rows that match current recommended profile ids", ()
   );
 
   const [profile] = loadProfiles(storage);
+  const expectedCosts = calculateCubingProfileCosts({
+    cubeType: "black",
+    itemType: "secondary",
+    itemLevel: 200,
+    cubeSale: false,
+    desiredTier: "legendary",
+    target: "percAtt+36",
+    percentile: 0.85,
+  });
 
   assert.equal(profile.id, "recommended-cube-secondary-double-prime-attack");
-  assert.equal(profile.name, "DP secondary");
-  assert.equal(profile.source.itemLevel, 140);
-  assert.equal(profile.source.target, "percAtt+33");
-  assert.equal(profile.source.targetLabel, "33%+ Attack/Magic Attack");
-  assert.equal(profile.notes, "");
-  assert.ok(profile.source.percentileCosts.pTargetCost > 1_000_000_000_000);
+  assert.equal(profile.name, "Old DP secondary");
+  assert.equal(profile.source.itemLevel, 200);
+  assert.equal(profile.source.cubeSale, false);
+  assert.equal(profile.source.target, "percAtt+36");
+  assert.equal(profile.source.targetLabel, "36%+ Attack/Magic Attack");
+  assert.equal(profile.notes, "stale local recommended row");
+  assert.deepEqual(profile.statGains, { "Attack%": 3 });
+  assert.equal(profile.source.percentileCosts.pTargetCost, expectedCosts.pTargetCost);
 });
 
 test("refreshes custom saved rows with stale cost snapshots when source settings are available", () => {
@@ -1445,7 +1503,7 @@ test("the built-in recommended preset exposes the updated rows", () => {
   );
 });
 
-test("reloads stale recommended-id rows in named saved-upgrade presets", () => {
+test("refreshes recommended-id SF costs without replacing saved event settings", () => {
   const storage = new MapStorage();
   storage.setItem(
     "sfcalc.enhancementPlanner.profilePresets.v1",
@@ -1487,9 +1545,19 @@ test("reloads stale recommended-id rows in named saved-upgrade presets", () => {
 
   const [preset] = loadProfilePresets(storage);
   const [profile] = preset.profiles;
+  const expectedCosts = calculateStarforceProfileCosts({
+    itemLevel: 160,
+    startStar: 22,
+    targetStar: 23,
+    spareCount: 0,
+    hitProbability: 0.85,
+    events: {},
+  });
 
   assert.equal(profile.id, "recommended-sf-22-23-pitched-160");
-  assert.equal(profile.source.percentileCosts.requiredSpares, 2);
+  assert.deepEqual(profile.source.events, {});
+  assert.equal(profile.source.spareCount, 0);
+  assert.equal(profile.source.percentileCosts.requiredSpares, expectedCosts.requiredSpares);
   assert.equal(
     formatStrategy(
       formatStarforceStrategyForSource(profile.source.percentileCosts.strategy, profile.source),
@@ -1498,15 +1566,15 @@ test("reloads stale recommended-id rows in named saved-upgrade presets", () => {
     "**4/44/44",
   );
   assert.equal(
-    Math.round(profile.source.percentileCosts.pTargetCost / 1_000_000_000),
-    66,
+    profile.source.percentileCosts.pTargetCost,
+    expectedCosts.pTargetCost,
   );
 });
 
 test("preserves customized saved-upgrade presets without cost source settings", () => {
   const storage = new MapStorage();
   const customProfile = {
-    id: "my-custom-pitched-row",
+    id: "recommended-sf-22-23-pitched-160",
     name: "My custom Pitched row",
     type: "starforce",
     statGains: { Attack: 1 },
