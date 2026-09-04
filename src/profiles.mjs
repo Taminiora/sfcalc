@@ -1027,24 +1027,33 @@ export function calculateStarforceFdGain(input, statEquivalence) {
   );
 }
 
+function getMetricEfficiencyCost(profile) {
+  const percentileCosts = profile.source?.percentileCosts ?? {};
+  if (profile.type === "cubing") {
+    return Number(
+      percentileCosts.expectedCost ??
+        percentileCosts.pTargetCost ??
+        percentileCosts.p85Cost ??
+        profile.p95Cost,
+    );
+  }
+  return Number(percentileCosts.pTargetCost ?? percentileCosts.p85Cost ?? profile.p95Cost);
+}
+
 export function deriveProfileMetrics(profile, statEquivalence) {
   const validProfile = validateProfileInput(profile);
   const fdGain =
     validProfile.type === "starforce"
       ? calculateStarforceFdGain(validProfile, statEquivalence)
       : calculateFdGain(validProfile.statGains, statEquivalence);
-  const targetOddsCost = Number(
-    validProfile.source?.percentileCosts?.pTargetCost ??
-      validProfile.source?.percentileCosts?.p85Cost ??
-      validProfile.p95Cost,
-  );
+  const efficiencyCost = getMetricEfficiencyCost(validProfile);
 
   return {
     ...validProfile,
     fdGain,
     fdPerMesoP50: fdGain / validProfile.p50Cost,
     fdPerMesoP75: fdGain / validProfile.p75Cost,
-    fdPerMesoP95: fdGain / targetOddsCost,
+    fdPerMesoP95: fdGain / efficiencyCost,
   };
 }
 

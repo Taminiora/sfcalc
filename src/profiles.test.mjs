@@ -165,6 +165,32 @@ test("derives profile metrics from computed costs and stat gains", () => {
   assert.equal(metrics.fdPerMesoP95, 2.1 / 42_000_000_000);
 });
 
+test("uses expected cubing cost for FD per meso efficiency", () => {
+  const statEquivalence = validateStatEquivalenceInput({
+    rows: [{ stat: "Critical Dmg", value: 8, finalDamagePercent: 2.4 }],
+  });
+  const profile = validateProfileInput({
+    name: "3L crit gloves",
+    type: "cubing",
+    statGains: { "Critical Dmg": 4 },
+    p50Cost: 12_000_000_000,
+    p75Cost: 22_000_000_000,
+    p95Cost: 64_000_000_000,
+    notes: "",
+    source: {
+      percentileCosts: {
+        expectedCost: 20_000_000_000,
+        pTargetCost: 40_000_000_000,
+      },
+    },
+  });
+
+  const metrics = deriveProfileMetrics(profile, statEquivalence);
+
+  assert.equal(metrics.fdGain, 1.2);
+  assert.equal(metrics.fdPerMesoP95, 1.2 / 20_000_000_000);
+});
+
 test("derives star-force FD gain from wiki stat gains plus manual additions", () => {
   const statEquivalence = validateStatEquivalenceInput({
     className: "wind_archer",
