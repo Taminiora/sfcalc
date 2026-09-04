@@ -29,7 +29,7 @@ import {
   validateStatEquivalenceInput,
   validateStatEquivalencePresetInput,
 } from "./profiles.mjs";
-import { calculateAstraStarforceProfileCosts } from "./astraStarforce.mjs";
+import { ASTRA_COST_MODEL_VERSION, calculateAstraStarforceProfileCosts } from "./astraStarforce.mjs";
 import { calculateCubingProfileCosts } from "./cubing.mjs";
 import {
   calculateStarforceProfileCosts,
@@ -558,6 +558,7 @@ test("applies additional meso cost only to meso fields", () => {
       p95Cost: 40,
       expectedMeso: 50,
       expectedCost: 60,
+      expectedTotalCost: 62,
       expectedBooms: 2,
       p85Cubes: 100,
     },
@@ -571,6 +572,7 @@ test("applies additional meso cost only to meso fields", () => {
     p95Cost: 47,
     expectedMeso: 57,
     expectedCost: 67,
+    expectedTotalCost: 69,
     expectedBooms: 2,
     p85Cubes: 100,
   });
@@ -699,6 +701,29 @@ test("recommended star-force preset snapshots match current calculator output", 
       `${profile.name} strategy`,
     );
   }
+});
+
+test("refreshes old Astra math in custom libraries and named presets without changing inputs", () => {
+  const original = structuredClone(getRecommendedProfiles().find((profile) => profile.source?.isAstraSecondary));
+  original.id = "custom-astra-id";
+  original.name = "My Astra";
+  original.notes = "Keep my notes";
+  original.statGains = { Attack: -10 };
+  original.source.percentileCosts.astraCostModelVersion = 1;
+  original.source.percentileCosts.pTargetCost = 29_093_830_511;
+  const storage = new MapStorage();
+  saveProfiles(storage, [original]);
+  saveProfilePresets(storage, [{ id: "my-preset", name: "My preset", profiles: [original] }]);
+  const updated = loadProfiles(storage)[0];
+  assert.equal(updated.source.percentileCosts.astraCostModelVersion, ASTRA_COST_MODEL_VERSION);
+  assert.ok(updated.source.percentileCosts.pTargetCost > 50_000_000_000);
+  assert.equal(updated.id, original.id);
+  assert.equal(updated.name, original.name);
+  assert.equal(updated.notes, original.notes);
+  assert.deepEqual(updated.statGains, original.statGains);
+  assert.equal(updated.source.hitProbability, original.source.hitProbability);
+  assert.deepEqual(loadProfilePresets(storage)[0].profiles[0], updated);
+  assert.equal(refreshStaleProfileCostSnapshots([updated]).didRefresh, false);
 });
 
 test("recommended cubing preset snapshots match current calculator output", () => {

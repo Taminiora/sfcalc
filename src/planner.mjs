@@ -598,7 +598,7 @@ function getSavedExpectedSortValue(profile) {
   if (profile.type === "cubing") {
     return Number(costs.expectedCost);
   }
-  return Number(costs.expectedMeso ?? profile.p95Cost);
+  return Number(costs.expectedTotalCost ?? costs.expectedMeso ?? profile.p95Cost);
 }
 
 function getSavedTargetOddsSortValue(profile) {
@@ -728,6 +728,14 @@ function formatSavedTargetOdds(profile) {
   const targetOddsMeso = Number(
     costs.pTargetCost ?? costs.p85Cost ?? costs.expectedMeso ?? profile.p95Cost,
   );
+  if (profile.source?.isAstraSecondary) {
+    if (!Number.isFinite(targetOddsMeso)) return "-";
+    return `
+      <strong title="${formatInteger(targetOddsMeso)}">${formatCompactMeso(targetOddsMeso)}</strong>
+      <span class="row-note">${formatPercent(costs.achievedProbability)} within budget</span>
+      <span class="row-note">Replacements included</span>
+    `;
+  }
   const requiredUnits = Number(costs.requiredBooms ?? costs.requiredSpares);
   const availableUnits = parseOptionalNumber(costs.availableSpares);
   const displayedUnits = Number.isFinite(availableUnits) ? availableUnits : requiredUnits;
@@ -736,13 +744,7 @@ function formatSavedTargetOdds(profile) {
   if (!Number.isFinite(targetOddsMeso) || !Number.isFinite(displayedUnits)) {
     return "-";
   }
-  const unitLabel = profile.source?.isAstraSecondary
-    ? displayedUnits === 1
-      ? "replacement boom"
-      : "replacement booms"
-    : displayedUnits === 1
-      ? "spare"
-      : "spares";
+  const unitLabel = displayedUnits === 1 ? "spare" : "spares";
   const belowTarget =
     costs.guaranteeMet === false && Number.isFinite(targetProbability)
       ? `<span class="row-note warning-note">below ${formatPercent(targetProbability)} target</span>`
@@ -944,9 +946,20 @@ function renderOptimizer() {
         : "spares";
 
     setMessage(optimizerMessage, "");
-    optimizerContext.textContent = result.meetsBenchmark
-      ? `Clears ${selectedProfile.name} at target odds. Plan for ${formatInteger(requiredUnits)} ${requiredUnitLabel} for ${formatPercent(result.achievedProbability)} hit odds with this strategy.`
-      : `Even the least conservative strategy cannot compete with ${selectedProfile.name} benchmark FD/meso.`;
+    optimizerContext.textContent = optimizerSource.isAstraSecondary
+      ? result.meetsBenchmark
+        ? `Clears ${selectedProfile.name} at ${formatPercent(result.achievedProbability)} hit odds within ${formatCompactMeso(result.totalExpectedCost)}. Replacements included.`
+        : `No Astra strategy clears ${selectedProfile.name} at the target odds.`
+      : result.meetsBenchmark
+        ? `Clears ${selectedProfile.name} at target odds. Plan for ${formatInteger(requiredUnits)} ${requiredUnitLabel} for ${formatPercent(result.achievedProbability)} hit odds with this strategy.`
+        : `Even the least conservative strategy cannot compete with ${selectedProfile.name} benchmark FD/meso.`;
+    resultFields.spares.closest(".planner-metric").hidden = optimizerSource.isAstraSecondary;
+    resultFields.total.previousElementSibling.textContent = optimizerSource.isAstraSecondary
+      ? "Target meso budget"
+      : "Expected meso";
+    resultFields.probability.previousElementSibling.textContent = optimizerSource.isAstraSecondary
+      ? "Budget hit odds"
+      : "Hit odds";
     resultFields.strategy.textContent = formatStrategy(result.strategy);
     resultFields.spares.textContent = optimizerSource.isAstraSecondary
       ? `${formatInteger(requiredUnits)} booms`

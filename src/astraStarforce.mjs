@@ -1,8 +1,16 @@
-import { getPrunedPolicyCandidates } from "./sfPolicyEvaluation.mjs";
+import { evaluatePolicy } from "./sfPolicyEvaluation.mjs";
+import {
+  calculateTotalCostCdf,
+  createStarforceCostModel,
+  findTotalCostPercentile,
+} from "./sfCostDistribution.mjs";
 import { RESTORE_LEVEL } from "./starforce.mjs";
 import {
   MAX_TARGET_STAR,
   MIN_STAR,
+  MODE_END_STAR,
+  MODE_IDS,
+  MODE_START_STAR,
   assertFiniteNumber,
   getAdjustedTap,
   getModeId,
@@ -12,10 +20,9 @@ import {
 
 export const ASTRA_ITEM_LEVEL = 200;
 export const ASTRA_REPLACEMENT_COST = 1_000_000_000;
+export const ASTRA_COST_MODEL_VERSION = 2;
 
-const ASTRA_CANDIDATE_LIMIT = 32;
 const ASTRA_CACHE_LIMIT = 50;
-const astraCandidateCache = new Map();
 const astraResultCache = new Map();
 
 function validateAstraRange({ startStar, targetStar }) {
@@ -30,8 +37,8 @@ function validateAstraRange({ startStar, targetStar }) {
 
 function validateHitProbability(hitProbability) {
   assertFiniteNumber(hitProbability, "Hit probability");
-  if (hitProbability <= 0 || hitProbability > 1) {
-    throw new Error("Hit probability must be between 0 and 100%");
+  if (hitProbability <= 0 || hitProbability >= 1) {
+    throw new Error("Target odds must be greater than 0% and less than 100%");
   }
 }
 
@@ -42,10 +49,6 @@ function getEventsCacheParts(events) {
     normalizedEvents.costReduction30,
     normalizedEvents.boomReduction30,
   ];
-}
-
-function getCandidateCacheKey({ startStar, targetStar, events }) {
-  return JSON.stringify([startStar, targetStar, ...getEventsCacheParts(events)]);
 }
 
 function getResultCacheKey({ startStar, targetStar, hitProbability, events }) {
@@ -80,55 +83,6 @@ function cloneResult(result) {
     ...result,
     strategy: result.strategy.map((row) => ({ ...row })),
   };
-}
-
-function getExpectedReplacementTotal(policy) {
-  return policy.expectedMeso + policy.expectedBooms * ASTRA_REPLACEMENT_COST;
-}
-
-function getAstraCandidatePolicies({ startStar, targetStar, events }) {
-  const normalizedEvents = normalizeEvents(events);
-  const cacheKey = getCandidateCacheKey({ startStar, targetStar, events: normalizedEvents });
-  const cached = astraCandidateCache.get(cacheKey);
-  if (cached) {
-    return cached;
-  }
-
-  const policies = getPrunedPolicyCandidates({
-    itemLevel: ASTRA_ITEM_LEVEL,
-    startStar,
-    targetStar,
-    events: normalizedEvents,
-  });
-  const selectedPolicies = new Map();
-  const addPolicies = (candidates) => {
-    for (const candidate of candidates.slice(0, ASTRA_CANDIDATE_LIMIT)) {
-      selectedPolicies.set(JSON.stringify([...candidate.modeMap.entries()]), candidate);
-    }
-  };
-
-  addPolicies(
-    [...policies].sort(
-      (left, right) =>
-        getExpectedReplacementTotal(left) - getExpectedReplacementTotal(right) ||
-        left.expectedBooms - right.expectedBooms,
-    ),
-  );
-  addPolicies(
-    [...policies].sort(
-      (left, right) =>
-        left.expectedBooms - right.expectedBooms ||
-        getExpectedReplacementTotal(left) - getExpectedReplacementTotal(right),
-    ),
-  );
-  addPolicies([...policies].sort((left, right) => left.expectedMeso - right.expectedMeso));
-
-  const candidates = [...selectedPolicies.values()].map((policy) => ({
-    ...policy,
-    normalizedEvents,
-  }));
-  writeLimitedCache(astraCandidateCache, cacheKey, candidates);
-  return candidates;
 }
 
 function addProbability(map, key, probability) {
@@ -334,36 +288,68 @@ function getRequiredBoomsForPolicy({ policy, startStar, targetStar, hitProbabili
 }
 
 function chooseAstraPolicy({ startStar, targetStar, hitProbability, events }) {
-  const candidates = getAstraCandidatePolicies({ startStar, targetStar, events });
+  const modeCount = Math.max(0, Math.min(targetStar, MODE_END_STAR + 1) - MODE_START_STAR);
+  const optionsByStar = Array.from({ length: targetStar }, (_, star) =>
+    (star >= MODE_START_STAR && star <= MODE_END_STAR ? MODE_IDS : ["Base"])
+      .map((mode) => ({
+        ...getAdjustedTap({ itemLevel: ASTRA_ITEM_LEVEL, star, tier: getTier(star, mode), events }),
+        restoreStar: RESTORE_LEVEL[star],
+      })),
+  );
   let best = null;
 
-  for (const policy of candidates) {
-    const boomResult = getRequiredBoomsForPolicy({
-      policy,
-      startStar,
-      targetStar,
-      hitProbability,
+  // Compare every stationary mode policy at the incumbent's budget. Most need
+  // only one CDF evaluation; solve a new quantile only when that budget improves.
+  // Expected-cost/boom dominance cannot safely prune a percentile objective.
+  for (let policyId = 0; policyId < MODE_IDS.length ** modeCount; policyId += 1) {
+    const modeMap = new Map();
+    const taps = optionsByStar.map((options, star) => {
+      if (options.length === 1) return options[0];
+      const modeIndex = (policyId >>> (2 * (modeCount - 1 - (star - MODE_START_STAR)))) & 3;
+      modeMap.set(star, MODE_IDS[modeIndex]);
+      return options[modeIndex];
     });
-    const percentileCost = policy.expectedMeso + boomResult.requiredBooms * ASTRA_REPLACEMENT_COST;
-    const candidate = {
-      ...policy,
-      ...boomResult,
-      percentileCost,
-    };
-
-    if (
-      !best ||
-      candidate.percentileCost < best.percentileCost ||
-      (candidate.percentileCost === best.percentileCost &&
-        (candidate.expectedBooms < best.expectedBooms ||
-          (candidate.expectedBooms === best.expectedBooms &&
-            candidate.expectedMeso < best.expectedMeso)))
-    ) {
-      best = candidate;
+    const costModel = createStarforceCostModel({
+      taps,
+      startStar,
+      replacementCostPerBoom: ASTRA_REPLACEMENT_COST,
+    });
+    if (best && calculateTotalCostCdf(costModel, best.percentileCost) < hitProbability + 1e-7) continue;
+    const percentileCost = findTotalCostPercentile(costModel, hitProbability, {
+      upperBound: best?.percentileCost,
+    });
+    if (!best || percentileCost < best.percentileCost) {
+      best = { modeMap, costModel, percentileCost };
     }
   }
 
-  return best;
+  // Verify numerical inversion at a higher frequency cutoff before reporting it.
+  let terms = 32;
+  while (Math.abs(
+    calculateTotalCostCdf(best.costModel, best.percentileCost, { terms }) -
+    calculateTotalCostCdf(best.costModel, best.percentileCost, { terms: terms * 2 }),
+  ) > 1e-5) {
+    terms *= 2;
+    if (terms > 1024) {
+      throw new Error("Astra cost percentile did not converge; try a different target probability");
+    }
+    best.percentileCost = findTotalCostPercentile(best.costModel, hitProbability, { terms });
+  }
+  best.percentileCost = findTotalCostPercentile(best.costModel, hitProbability, { terms: terms * 2 });
+  const policy = evaluatePolicy({
+    itemLevel: ASTRA_ITEM_LEVEL,
+    startStar,
+    targetStar,
+    events,
+    modeMap: best.modeMap,
+  });
+  return {
+    ...policy,
+    ...best,
+    normalizedEvents: events,
+    inversionTerms: terms * 2,
+    achievedProbability: calculateTotalCostCdf(best.costModel, best.percentileCost, { terms: terms * 2 }),
+  };
 }
 
 export function calculateAstraStarforceProfileCosts({
@@ -395,17 +381,26 @@ export function calculateAstraStarforceProfileCosts({
   });
   const expectedReplacementCost = bestPolicy.expectedBooms * ASTRA_REPLACEMENT_COST;
   const expectedTotalCost = bestPolicy.expectedMeso + expectedReplacementCost;
+  const costPercentile = (probability) => findTotalCostPercentile(bestPolicy.costModel, probability, {
+    terms: bestPolicy.inversionTerms,
+  });
+  const boomPercentile = (probability) => getRequiredBoomsForPolicy({
+    policy: bestPolicy, startStar, targetStar, hitProbability: probability,
+  });
+  const boomResult = boomPercentile(hitProbability);
   const result = {
-    p50Cost: expectedTotalCost,
-    p75Cost: expectedTotalCost,
+    astraCostModelVersion: ASTRA_COST_MODEL_VERSION,
+    p50Cost: costPercentile(0.5),
+    p75Cost: costPercentile(0.75),
     pTargetCost: bestPolicy.percentileCost,
-    p95Cost: expectedTotalCost,
-    p50Booms: Math.floor(bestPolicy.expectedBooms),
-    p75Booms: Math.ceil(bestPolicy.expectedBooms),
-    p95Booms: bestPolicy.requiredBooms,
+    p95Cost: costPercentile(0.95),
+    p50Booms: boomPercentile(0.5).requiredBooms,
+    p75Booms: boomPercentile(0.75).requiredBooms,
+    p95Booms: boomPercentile(0.95).requiredBooms,
     availableSpares: null,
-    requiredSpares: bestPolicy.requiredBooms,
-    requiredBooms: bestPolicy.requiredBooms,
+    requiredSpares: boomResult.requiredBooms,
+    requiredBooms: boomResult.requiredBooms,
+    boomBudgetProbability: boomResult.achievedProbability,
     achievedProbability: bestPolicy.achievedProbability,
     guaranteeMet: true,
     expectedMeso: bestPolicy.expectedMeso,
