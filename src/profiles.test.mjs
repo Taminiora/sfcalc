@@ -1342,6 +1342,56 @@ test("refreshes custom cubing rows with stale cost snapshots when source setting
   assert.equal(profile.source.percentileCosts.costVariance, expectedCosts.costVariance);
 });
 
+test("refreshes old All Stat weighting in saved upgrades and named presets once", () => {
+  const storage = new MapStorage();
+  const source = {
+    cubeType: "black",
+    itemType: "heart",
+    itemLevel: 200,
+    desiredTier: "legendary",
+    target: "percAllStat+24",
+    targetLabel: "24%+ equivalent All Stat",
+    percentile: 0.65,
+  };
+  const expectedCosts = calculateCubingProfileCosts(source);
+  const oldCosts = { ...expectedCosts, cacheVersion: 1, expectedCost: 1, pTargetCost: 1 };
+  delete oldCosts.cubingCostModelVersion;
+  const oldProfile = {
+    id: "my-all-stat-heart",
+    name: "My Xenon heart",
+    type: "cubing",
+    statGains: { "All Stat%": 3 },
+    p50Cost: 1,
+    p75Cost: 1,
+    p95Cost: 1,
+    notes: "Keep my settings",
+    source: { ...source, percentileCosts: oldCosts },
+  };
+  saveProfiles(storage, [oldProfile]);
+  saveProfilePresets(storage, [{ id: "my-xenon-preset", name: "Xenon", profiles: [oldProfile] }]);
+
+  const loaded = loadProfiles(storage, { refreshStaleCosts: false });
+  const loadedPresets = loadProfilePresets(storage, { refreshStaleCosts: false });
+  assert.equal(loaded[0].source.percentileCosts.pTargetCost, 1);
+  const refreshed = refreshStaleProfileCostSnapshots(loaded);
+  const refreshedPresets = refreshStaleProfilePresets(loadedPresets);
+  assert.equal(refreshed.didRefresh, true);
+  assert.equal(refreshedPresets.didRefresh, true);
+  for (const profile of [refreshed.profiles[0], refreshedPresets.profilePresets[0].profiles[0]]) {
+    assert.equal(profile.id, oldProfile.id);
+    assert.equal(profile.name, oldProfile.name);
+    assert.equal(profile.notes, oldProfile.notes);
+    assert.deepEqual(profile.statGains, oldProfile.statGains);
+    assert.equal(profile.source.percentile, 0.65);
+    assert.equal(profile.source.target, source.target);
+    assert.equal(profile.source.targetLabel, "24%+ All Stat");
+    assert.equal(profile.source.percentileCosts.expectedCost, expectedCosts.expectedCost);
+    assert.equal(profile.source.percentileCosts.pTargetCost, expectedCosts.pTargetCost);
+  }
+  assert.equal(refreshStaleProfileCostSnapshots(refreshed.profiles).didRefresh, false);
+  assert.equal(refreshStaleProfilePresets(refreshedPresets.profilePresets).didRefresh, false);
+});
+
 test("refreshes custom saved rows with complete but unversioned cost snapshots", () => {
   const storage = new MapStorage();
   const expectedCosts = calculateCubingProfileCosts({

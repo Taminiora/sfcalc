@@ -50,6 +50,7 @@ test("uses MathBro-style attack choices for WSE item types", () => {
     });
 
     assert.equal(options.some((option) => option.value.includes("primeStat")), false);
+    assert.equal(options.some((option) => option.value.includes("AllStat")), false);
     assert.ok(options.some((option) => option.value === "percAtt+26"));
     assert.ok(options.some((option) => option.value === "percAtt+39"));
     assert.ok(options.some((option) => option.value === "lineIed+1&percAtt+26"));
@@ -61,6 +62,63 @@ test("uses MathBro-style attack choices for WSE item types", () => {
 
   assert.ok(weaponOptions.some((option) => option.value === "lineAttOrBoss+3"));
   assert.equal(emblemOptions.some((option) => option.value === "lineAttOrBoss+3"), false);
+});
+
+test("exposes All Stat cubing thresholds for stat gear", () => {
+  for (const itemType of ["armor", "accessory", "heart", "hat", "gloves", "shoes", "belt", "cape", "shoulder"]) {
+    const options = getCubingStrategyOptions({ itemType, itemLevel: 200, desiredTier: "legendary" });
+    assert.deepEqual(
+      options.filter((option) => option.value.startsWith("percAllStat+")).map((option) => option.value),
+      [12, 15, 18, 21, 24, 27, 30].map((amount) => `percAllStat+${amount}`),
+    );
+    assert.ok(options.some((option) => option.value === "percAllStat+27" && option.label === "27%+ All Stat"));
+    assert.ok(options.some((option) => option.value === "percStat+36"));
+  }
+});
+
+test("scales All Stat menu thresholds by item level and potential tier", () => {
+  for (const [itemLevel, desiredTier, amounts] of [
+    [140, "legendary", [9, 12, 15, 18, 21, 24, 27]],
+    [200, "unique", [3, 6, 9, 12, 15, 18, 21]],
+    [140, "epic", [3, 6, 9]],
+    [200, "epic", [4, 8, 12]],
+  ]) {
+    const options = getCubingStrategyOptions({ itemType: "heart", itemLevel, desiredTier });
+    assert.deepEqual(
+      options.filter((option) => option.value.startsWith("percAllStat+")).map((option) => option.value),
+      amounts.map((amount) => `percAllStat+${amount}`),
+    );
+  }
+});
+
+test("calculates costs from an All Stat menu selection", () => {
+  const source = { cubeType: "black", itemType: "heart", itemLevel: 200, desiredTier: "legendary", percentile: 0.65 };
+  const option = getCubingStrategyOptions(source).find((option) => option.value === "percAllStat+27");
+  assert.ok(option);
+  const costs = calculateCubingProfileCosts({ ...source, target: option.value });
+  const probability = getCubingProbability({ ...source, target: "percAllStat+27" });
+  assert.ok(probability > 0);
+  assert.equal(costs.successProbability, probability);
+  assert.ok(Number.isFinite(costs.expectedCost) && costs.expectedCost > 0);
+  assert.ok(Number.isFinite(costs.pTargetCost) && costs.pTargetCost > 0);
+  assert.equal(costs.strategy, "percAllStat+27");
+  assert.equal(costs.targetPercentile, 0.65);
+});
+
+test("All Stat percentage targets count only actual All Stat lines", () => {
+  for (const cubeType of ["red", "black"]) {
+    for (const itemLevel of [140, 200]) {
+      const source = { cubeType, itemType: "heart", itemLevel, desiredTier: "legendary" };
+      const oneLine = getCubingProbability({ ...source, target: "lineAllStat+1" });
+      const threeLines = getCubingProbability({ ...source, target: "lineAllStat+3" });
+      const threshold = itemLevel >= 160 ? 22 : 19;
+
+      assert.ok(oneLine > 0 && threeLines > 0);
+      assert.ok(Math.abs(getCubingProbability({ ...source, target: "percAllStat+1" }) - oneLine) < 1e-12);
+      // Two prime All Stat lines cannot reach this threshold, even with a STR/DEX/LUK third line.
+      assert.ok(Math.abs(getCubingProbability({ ...source, target: `percAllStat+${threshold}` }) - threeLines) < 1e-12);
+    }
+  }
 });
 
 test("hides prime-line shortcuts while preserving explicit prime target math", () => {

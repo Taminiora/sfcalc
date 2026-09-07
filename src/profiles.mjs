@@ -1,4 +1,8 @@
-import { calculateCubingProfileCosts } from "./cubing.mjs";
+import {
+  CUBING_COST_MODEL_VERSION,
+  calculateCubingProfileCosts,
+  getCubingStrategyOptions,
+} from "./cubing.mjs";
 import {
   ASTRA_COST_MODEL_VERSION,
   ASTRA_REPLACEMENT_COST as ASTRA_SECONDARY_REPLACEMENT_COST,
@@ -1171,6 +1175,7 @@ function hasFreshCubingCostSnapshot(profile) {
   ];
   return (
     costs.cacheVersion === PROFILE_COST_CACHE_VERSION &&
+    costs.cubingCostModelVersion === CUBING_COST_MODEL_VERSION &&
     requiredCostFields.every((field) => hasFiniteCostValue(costs, field)) &&
     Number.isFinite(Number(costs.targetPercentile)) &&
     typeof costs.strategy === "string"
@@ -1198,6 +1203,9 @@ export function refreshStarforceProfileCosts(profiles) {
   return profiles.map((profile) => {
     const validProfile = validateProfileInput(profile);
     if (validProfile.type === "cubing" && hasCubingCostSource(validProfile.source)) {
+      const targetOption = getCubingStrategyOptions(validProfile.source).find(
+        (option) => option.value === validProfile.source.target,
+      );
       const additionalMesoCost = getAdditionalMesoCost(validProfile.source);
       const costs = withCostCacheVersion(
         applyAdditionalMesoCost(
@@ -1221,6 +1229,7 @@ export function refreshStarforceProfileCosts(profiles) {
         p95Cost: costs.p95Cost,
         source: {
           ...validProfile.source,
+          targetLabel: targetOption?.label ?? validProfile.source.targetLabel,
           additionalMesoCost,
           percentileCosts: costs,
         },

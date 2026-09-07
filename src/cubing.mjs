@@ -1,5 +1,7 @@
 import { cubeRates } from "./cubingRates.mjs";
 
+export const CUBING_COST_MODEL_VERSION = 1;
+
 const CUBE_COSTS = Object.freeze({
   occult: 0,
   master: 7_500_000,
@@ -83,7 +85,7 @@ const INPUT_CATEGORY_MAP = Object.freeze({
   percStat: [CATEGORY.STR_PERC, CATEGORY.ALLSTATS_PERC],
   primeStat: [CATEGORY.STR_PERC],
   lineStat: [CATEGORY.STR_PERC, CATEGORY.ALLSTATS_PERC],
-  percAllStat: [CATEGORY.ALLSTATS_PERC, CATEGORY.STR_PERC, CATEGORY.DEX_PERC, CATEGORY.LUK_PERC],
+  percAllStat: [CATEGORY.ALLSTATS_PERC],
   lineAllStat: [CATEGORY.ALLSTATS_PERC],
   percHp: [CATEGORY.MAXHP_PERC],
   lineHp: [CATEGORY.MAXHP_PERC],
@@ -151,12 +153,23 @@ function get3LineStatOptionAmounts(prime) {
 
 function getStatStrategyGroups({ itemLevel = 250, desiredTier = "legendary" } = {}) {
   const prime = getPrimeLineValue(itemLevel, desiredTier);
+  const allStatPrime = getPrimeLineValue(itemLevel, desiredTier, "allStat");
+  const allStatAmounts = getDesiredTierNumber(desiredTier) === 1
+    ? [allStatPrime, allStatPrime * 2, allStatPrime * 3]
+    : get3LineStatOptionAmounts(allStatPrime);
   return [
     {
       label: "Stat thresholds",
       options: get3LineStatOptionAmounts(prime).map((amount) => ({
         label: `${amount}%+ main stat`,
         value: `percStat+${amount}`,
+      })),
+    },
+    {
+      label: "All Stat thresholds (Xenon)",
+      options: allStatAmounts.map((amount) => ({
+        label: `${amount}%+ All Stat`,
+        value: `percAllStat+${amount}`,
       })),
     },
   ];
@@ -423,19 +436,6 @@ function calculatePrimeStatLines(outcome) {
   }, 0);
 }
 
-function checkPercAllStat(outcome, requiredValue) {
-  let actualValue = 0;
-  for (const [category, value] of outcome) {
-    if (category === CATEGORY.ALLSTATS_PERC) {
-      actualValue += value;
-    }
-    if ([CATEGORY.STR_PERC, CATEGORY.DEX_PERC, CATEGORY.LUK_PERC].includes(category)) {
-      actualValue += value / 3;
-    }
-  }
-  return actualValue >= requiredValue;
-}
-
 const OUTCOME_MATCHERS = Object.freeze({
   percStat: (outcome, requiredValue) =>
     calculateTotal(outcome, CATEGORY.STR_PERC, true) +
@@ -446,7 +446,8 @@ const OUTCOME_MATCHERS = Object.freeze({
     calculateTotal(outcome, CATEGORY.STR_PERC) +
       calculateTotal(outcome, CATEGORY.ALLSTATS_PERC) >=
     requiredValue,
-  percAllStat: checkPercAllStat,
+  percAllStat: (outcome, requiredValue) =>
+    calculateTotal(outcome, CATEGORY.ALLSTATS_PERC, true) >= requiredValue,
   lineAllStat: (outcome, requiredValue) =>
     calculateTotal(outcome, CATEGORY.ALLSTATS_PERC) >= requiredValue,
   percHp: (outcome, requiredValue) =>
@@ -707,6 +708,7 @@ export function calculateCubingProfileCosts({
   const p95Cubes = getGeometricPercentile(successProbability, 0.95);
 
   return {
+    cubingCostModelVersion: CUBING_COST_MODEL_VERSION,
     strategy: target,
     targetPercentile: percentile,
     successProbability,

@@ -1198,6 +1198,16 @@ html[data-theme="dark"] .cubing-config-panel {
   margin: 0;
 }
 
+.cubing-config-panel .compact-number-grid {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.cubing-config-panel .compact-number-grid > label {
+  max-width: 100%;
+  min-width: 0;
+}
+
 .cubing-target-grid {
   display: grid;
   gap: 10px;
